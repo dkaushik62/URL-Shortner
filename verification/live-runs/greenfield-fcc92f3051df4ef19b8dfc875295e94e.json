@@ -1,0 +1,2076 @@
+{
+  "kind": "recorded_live_run",
+  "exported_at": "2026-10-14T14:01:24.810538+00:00",
+  "run": {
+    "active_seconds": 857.032,
+    "artifacts": {
+      "architecture": {
+        "output": {
+          "decisions": [
+            "Place new production classes under com.urlshortner.urls and tests in the matching test package; preserve the starter application, manifests and application.yml.",
+            "Use immutable records for creation requests, creation responses, analytics responses and persisted URL data. Apply Jakarta Validation through a custom destination constraint and @Valid.",
+            "Validate with java.net.URI without network access. Require an absolute HTTP or HTTPS URI with a nonempty valid host; reject user information, malformed authority and control characters, including percent-encoded control characters. Preserve the accepted URL without trimming or rewriting it.",
+            "Use SecureRandom.nextInt(62) to select each character of an eight-character base62 code. Allow five insertion attempts.",
+            "Create backend/src/main/resources/db/migration/V1__create_url_service.sql only after confirming that V1 is absent. Create url_service and url_service.urls with code VARCHAR(8), url TEXT, created_at TIMESTAMPTZ, click_count BIGINT DEFAULT 0 and nullable last_accessed_at TIMESTAMPTZ. Name the primary key pk_urls_code and enforce nonnegative click counts.",
+            "Use schema-qualified SQL throughout. INSERT ... RETURNING supplies the persisted creation timestamp; SELECT supplies analytics; UPDATE ... RETURNING increments click_count, sets last_accessed_at and returns the redirect destination in one statement.",
+            "Keep insertion retries outside a surrounding transaction so a uniqueness failure cannot leave subsequent attempts in an aborted PostgreSQL transaction. Retry only SQLSTATE 23505 identifying pk_urls_code; propagate all other database failures. Inspect PostgreSQL diagnostic metadata without adding a compile-time dependency on its runtime-only driver.",
+            "Return 201 with code, shortUrl, url and createdAt for creation; 302 with Location for redirects; and code, url, createdAt, clickCount and lastAccessedAt for analytics. Serialize timestamps as UTC instants.",
+            "Build shortUrl from the servlet request scheme, host and port, including any context path. Do not independently interpret forwarded headers or change proxy configuration.",
+            "Map invalid creation requests to 400, unknown codes to 404 and exhausted allocation attempts to 503. Do not expose SQL diagnostics or internal exceptions in error responses.",
+            "Exclude expiration and rate limiting. Existing related configuration properties do not activate either behavior.",
+            "Use JUnit 5, Mockito and Spring MVC test facilities already supplied by spring-boot-starter-test. Treat real PostgreSQL concurrency verification as a separate trusted-runner check."
+          ],
+          "files": [],
+          "questions": [],
+          "risks": [
+            "The supplied repository snapshot contains no migration inventory or workspace allowlist; permitted paths and V1 absence remain implementation prerequisites.",
+            "The PostgreSQL driver is runtime-only. Constraint classification must use runtime diagnostic metadata and fail closed if the named constraint cannot be identified.",
+            "Public shortUrl correctness behind a proxy depends on existing trusted-proxy configuration.",
+            "No test logs or live-run results were supplied; no execution success is asserted."
+          ],
+          "summary": "Architecture is ready: a Spring MVC controller, validation and allocation service, and JdbcTemplate repository backed by PostgreSQL. Supplied dependencies support the design without platform changes.",
+          "tasks": [
+            {
+              "acceptance": [
+                "Check proposed files against the orchestrator workspace allowlist using supplied repository data.",
+                "Confirm V1 is absent before creating the migration; never replace an existing migration.",
+                "Keep all replacements within backend/src/ and backend/docs/ and avoid protected files."
+              ],
+              "dependencies": [],
+              "id": "confirm_paths",
+              "title": "Confirm permitted paths and migration inventory"
+            },
+            {
+              "acceptance": [
+                "Create the schema, table, named code constraint and nonnegative click-count constraint.",
+                "Insertion returns database-generated createdAt and initial analytics values.",
+                "Redirect accounting uses one UPDATE ... RETURNING statement and returns absence for unknown codes.",
+                "Analytics reads do not mutate persisted data."
+              ],
+              "dependencies": [
+                "confirm_paths"
+              ],
+              "id": "persistence",
+              "title": "Implement migration and JdbcTemplate repository"
+            },
+            {
+              "acceptance": [
+                "Accept valid HTTP/HTTPS destinations without fetching them and reject malformed URLs, credentials and control characters.",
+                "Generate eight-character codes using SecureRandom.",
+                "Retry only the named code uniqueness conflict and stop after five attempts.",
+                "Unrelated database failures propagate immediately."
+              ],
+              "dependencies": [
+                "persistence"
+              ],
+              "id": "service",
+              "title": "Implement validation and bounded allocation"
+            },
+            {
+              "acceptance": [
+                "Creation returns 201 with all required fields and a request-origin shortUrl.",
+                "Redirect returns 302 with the stored destination after exactly one atomic accounting operation.",
+                "Analytics returns all required fields, including null lastAccessedAt initially.",
+                "Invalid requests return 400, unknown codes return 404 and allocation exhaustion returns 503."
+              ],
+              "dependencies": [
+                "service"
+              ],
+              "id": "http",
+              "title": "Implement controllers and error mapping"
+            },
+            {
+              "acceptance": [
+                "Cover destination validation, missing or malformed bodies, response fields and statuses.",
+                "Cover collision recovery, five-attempt exhaustion and unrelated database failures.",
+                "Verify redirects invoke accounting once and analytics never invokes accounting.",
+                "Cover zero initial clicks, nullable lastAccessedAt and unknown-code behavior."
+              ],
+              "dependencies": [
+                "http"
+              ],
+              "id": "tests",
+              "title": "Add focused JUnit coverage"
+            },
+            {
+              "acceptance": [
+                "Document endpoints, schema, validation, allocation bounds and local verification under backend/docs/.",
+                "The trusted runner performs 100 concurrent successful redirects against real PostgreSQL and verifies clickCount 100 and non-null lastAccessedAt.",
+                "Verify analytics leaves counts unchanged and unknown redirects create no records.",
+                "Collect Python tests, frontend typecheck/build, Java tests and independent HTTP acceptance results, documenting each unexecuted check.",
+                "Report automated tests and live runs separately without treating doubles as live PostgreSQL evidence."
+              ],
+              "dependencies": [
+                "tests"
+              ],
+              "id": "verification",
+              "title": "Document and collect trusted-runner verification"
+            }
+          ],
+          "verdict": "pass"
+        },
+        "revision": 1,
+        "source_sha": "39e155fce4b80db24bb5235c841295fb96acd764"
+      },
+      "change_approval": {
+        "policy": "Greenfield edits remain isolated until release approval"
+      },
+      "documentation": {
+        "output": {
+          "decisions": [
+            "Public short URLs use configured shortener.public-base-url, retaining its path prefix and removing trailing slashes before appending /r/{code}. Client Host, request origin, context path and forwarded headers do not determine this value. Invalid base configuration fails startup.",
+            "Destination validation uses java.net.URI without fetching destinations or resolving DNS. It accepts HTTP/HTTPS server hosts and ports from 0 through 65535, rejects credentials, malformed authority, empty explicit ports, malformed escapes and raw or percent-encoded ISO control characters, and preserves accepted strings exactly. Missing, non-string or invalid url values return 400.",
+            "SecureRandom generates eight-character base62 codes. Creation allows five insertion attempts and retries only SQLSTATE 23505 with structured PostgreSQL metadata identifying url_service.urls.pk_urls_code. Reflection avoids adding a compile-time PostgreSQL dependency; diagnostic message text is not parsed.",
+            "Insertion retries have no surrounding transaction, avoiding PostgreSQL's aborted-transaction behavior after uniqueness failures. All queries use schema-qualified tables.",
+            "Redirect accounting increments click_count and sets last_accessed_at with clock_timestamp() in one UPDATE ... RETURNING statement. This supports atomic concurrent counting; analytics performs a separate read without accounting.",
+            "Unknown codes return 404, exhausted allocation returns 503, and unexpected exceptions receive generic 500 responses without SQL diagnostics.",
+            "Expiration and rate limiting are absent. Existing related configuration properties do not activate these features.",
+            "No execution results are asserted. Existing documentation's historical test and live-run claims are not verification of the supplied source; current trusted-runner results must be attached separately."
+          ],
+          "files": [],
+          "questions": [],
+          "risks": [
+            "Current test and live-run results were not supplied; PostgreSQL compatibility and concurrent behavior require trusted-runner evidence.",
+            "The configured public base must route /r/{code} to this service. A retained path prefix requires matching local routing.",
+            "Validation checks URI syntax, not destination availability or trustworthiness; private and local hosts are accepted.",
+            "There is no expiration, rate limiting or destination fetching in this baseline.",
+            "The supplied repository does not include runner launcher details, so exact setup commands must come from the existing platform workflow."
+          ],
+          "summary": "The source implements a local PostgreSQL-backed URL shortener using Spring Boot 3.5.16, Java 21, JdbcTemplate and Jakarta Validation. Run it through the trusted Docker runner with the existing datasource configuration and SHORTENER_PUBLIC_BASE_URL override. Flyway applies the existing V1 migration, which creates url_service.urls; preserve that migration. POST /api/urls accepts {\"url\":\"https://example.com/path\"} and returns 201 with code, shortUrl, url, createdAt and a Location header. GET /r/{code} returns 302 with the stored destination in Location. GET /api/urls/{code}/analytics returns code, url, createdAt, clickCount and lastAccessedAt. New records have zero clicks and null lastAccessedAt. Disable redirect following when verifying responses so destinations are not fetched.",
+          "tasks": [
+            {
+              "acceptance": [
+                "Run Python tests, frontend typecheck/build and Java tests through the trusted Docker runner; record omitted checks and their reasons.",
+                "Run independent HTTP acceptance against real PostgreSQL with redirect following disabled.",
+                "Verify creation shortUrl and Location use the configured public base despite conflicting Host and forwarded headers.",
+                "Create a fresh URL, verify initial analytics, issue 100 concurrent redirects, require 100 successful 302 responses with exact destinations, and verify clickCount 100 and non-null lastAccessedAt.",
+                "Verify repeated analytics reads do not change counts or timestamps, and unknown-code requests and invalid creations create no rows.",
+                "Verify migration constraints, actual duplicate-code diagnostic metadata and persistence after restart.",
+                "Attach automated test results separately from live PostgreSQL and HTTP results; test doubles do not establish live success."
+              ],
+              "dependencies": [],
+              "id": "verify_current_source",
+              "title": "Collect current trusted-runner verification"
+            }
+          ],
+          "verdict": "pass"
+        },
+        "revision": 1,
+        "source_sha": "2b8313ea0bee486ad154150b944f051126719516"
+      },
+      "implementation": {
+        "output": {
+          "decisions": [
+            "Configured public-base-url overrides upstream request-origin decisions.",
+            "Preserve existing migrations, configuration, manifests and starter application.",
+            "Keep baseline behavior without expiration or rate limiting.",
+            "Supplied runner results apply to the prior revision; these replacements have not been executed."
+          ],
+          "files": [
+            {
+              "content": "package com.urlshortner.urls;\n\nimport com.fasterxml.jackson.databind.JsonNode;\nimport jakarta.validation.Valid;\nimport java.net.URI;\nimport java.time.Instant;\nimport org.springframework.beans.factory.annotation.Value;\nimport org.springframework.http.ResponseEntity;\nimport org.springframework.web.bind.annotation.*;\n\n@RestController\npublic class UrlController {\n    public record CreateRequest(@ValidDestination JsonNode url) {}\n    public record Created(String code, String shortUrl, String url, Instant createdAt) {}\n    public record Analytics(String code, String url, Instant createdAt, long clickCount, Instant lastAccessedAt) {}\n\n    private final UrlService service;\n    private final String publicBaseUrl;\n\n    public UrlController(UrlService service,\n            @Value(\"${shortener.public-base-url}\") String publicBaseUrl) {\n        this.service = service;\n        URI base = URI.create(publicBaseUrl);\n        if (!Destination.valid(publicBaseUrl) || base.getRawQuery() != null || base.getRawFragment() != null) {\n            throw new IllegalArgumentException(\"Invalid public base URL configuration\");\n        }\n        this.publicBaseUrl = publicBaseUrl.replaceAll(\"/+$\", \"\");\n    }\n\n    @PostMapping(\"/api/urls\")\n    public ResponseEntity<Created> create(@Valid @RequestBody CreateRequest body) {\n        UrlRepository.StoredUrl saved = service.create(body.url().textValue());\n        String shortUrl = publicBaseUrl + \"/r/\" + saved.code();\n        return ResponseEntity.created(URI.create(shortUrl))\n                .body(new Created(saved.code(), shortUrl, saved.url(), saved.createdAt()));\n    }\n\n    @GetMapping(\"/r/{code}\")\n    public ResponseEntity<Void> redirect(@PathVariable(\"code\") String code) {\n        return ResponseEntity.status(302).location(URI.create(service.redirect(code))).build();\n    }\n\n    @GetMapping(\"/api/urls/{code}/analytics\")\n    public Analytics analytics(@PathVariable(\"code\") String code) {\n        UrlRepository.StoredUrl saved = service.analytics(code);\n        return new Analytics(saved.code(), saved.url(), saved.createdAt(), saved.clickCount(), saved.lastAccessedAt());\n    }\n}\n",
+              "path": "backend/src/main/java/com/urlshortner/urls/UrlController.java"
+            },
+            {
+              "content": "package com.urlshortner.urls;\n\nimport com.fasterxml.jackson.databind.SerializationFeature;\nimport java.time.Instant;\nimport org.junit.jupiter.api.AfterEach;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.params.ParameterizedTest;\nimport org.junit.jupiter.params.provider.ValueSource;\nimport org.springframework.http.MediaType;\nimport org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;\nimport org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;\nimport org.springframework.test.web.servlet.MockMvc;\nimport org.springframework.test.web.servlet.setup.MockMvcBuilders;\nimport org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;\nimport static org.hamcrest.Matchers.nullValue;\nimport static org.junit.jupiter.api.Assertions.assertThrows;\nimport static org.mockito.Mockito.*;\nimport static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;\nimport static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;\n\nclass UrlControllerTest {\n    private final UrlService service = mock(UrlService.class);\n    private final LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();\n    private final UrlRepository.StoredUrl saved = new UrlRepository.StoredUrl(\n            \"Ab12Cd34\", \"https://example.com/a?b=1#part\", Instant.parse(\"2026-01-01T00:00:00Z\"), 0, null);\n    private MockMvc mvc;\n\n    @BeforeEach\n    void setUp() {\n        validator.afterPropertiesSet();\n        mvc = mvcFor(\"https://public.example:8443/links/\");\n    }\n\n    private MockMvc mvcFor(String base) {\n        var mapper = Jackson2ObjectMapperBuilder.json()\n                .featuresToDisable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS).build();\n        return MockMvcBuilders.standaloneSetup(new UrlController(service, base))\n                .setControllerAdvice(new UrlErrors()).setValidator(validator)\n                .setMessageConverters(new MappingJackson2HttpMessageConverter(mapper)).build();\n    }\n\n    @AfterEach\n    void closeValidator() {\n        validator.close();\n    }\n\n    @Test\n    void creationUsesConfiguredBaseDespiteConflictingClientOrigin() throws Exception {\n        when(service.create(saved.url())).thenReturn(saved);\n        mvc.perform(post(\"/app/api/urls\").contextPath(\"/app\")\n                        .with(request -> {\n                            request.setScheme(\"http\");\n                            request.setServerName(\"untrusted.example\");\n                            request.setServerPort(9999);\n                            return request;\n                        })\n                        .header(\"Host\", \"attacker.example:9999\")\n                        .header(\"Forwarded\", \"proto=http;host=forwarded.example\")\n                        .header(\"X-Forwarded-Host\", \"forwarded.example\")\n                        .header(\"X-Forwarded-Proto\", \"http\")\n                        .header(\"X-Forwarded-Port\", \"80\")\n                        .contentType(MediaType.APPLICATION_JSON).content(body()))\n                .andExpect(status().isCreated())\n                .andExpect(header().string(\"Location\", \"https://public.example:8443/links/r/Ab12Cd34\"))\n                .andExpect(jsonPath(\"$.code\").value(saved.code()))\n                .andExpect(jsonPath(\"$.shortUrl\").value(\"https://public.example:8443/links/r/Ab12Cd34\"))\n                .andExpect(jsonPath(\"$.url\").value(saved.url()))\n                .andExpect(jsonPath(\"$.createdAt\").value(\"2026-01-01T00:00:00Z\"));\n        verify(service).create(saved.url());\n        verifyNoMoreInteractions(service);\n    }\n\n    @ParameterizedTest\n    @ValueSource(strings = {\"http://127.0.0.1:8000\", \"http://127.0.0.1:8000/\"})\n    void rootBaseProducesOnePathSeparator(String base) throws Exception {\n        when(service.create(saved.url())).thenReturn(saved);\n        mvcFor(base).perform(post(\"/api/urls\").contentType(MediaType.APPLICATION_JSON).content(body()))\n                .andExpect(status().isCreated())\n                .andExpect(header().string(\"Location\", \"http://127.0.0.1:8000/r/Ab12Cd34\"))\n                .andExpect(jsonPath(\"$.shortUrl\").value(\"http://127.0.0.1:8000/r/Ab12Cd34\"));\n    }\n\n    @ParameterizedTest\n    @ValueSource(strings = {\"/relative\", \"ftp://example.com\", \"https://user@example.com\",\n            \"https://example.com/?query=1\", \"https://example.com/#fragment\"})\n    void rejectsInvalidPublicBaseConfiguration(String base) {\n        assertThrows(IllegalArgumentException.class, () -> new UrlController(service, base));\n    }\n\n    private String body() {\n        return \"{\\\"url\\\":\\\"\" + saved.url() + \"\\\"}\";\n    }\n\n    @ParameterizedTest\n    @ValueSource(strings = {\n            \"\", \"{\", \"null\", \"[]\", \"{}\", \"{\\\"url\\\":null}\", \"{\\\"url\\\":42}\",\n            \"{\\\"url\\\":true}\", \"{\\\"url\\\":{}}\", \"{\\\"url\\\":[]}\", \"{\\\"url\\\":\\\"\\\"}\",\n            \"{\\\"url\\\":\\\"ftp://example.com\\\"}\", \"{\\\"url\\\":\\\"https://user@example.com\\\"}\",\n            \"{\\\"url\\\":\\\"https://example.com/\\\\r\\\\n\\\"}\"\n    })\n    void rejectsInvalidBodiesWithoutCallingService(String body) throws Exception {\n        mvc.perform(post(\"/api/urls\").contentType(MediaType.APPLICATION_JSON).content(body))\n                .andExpect(status().isBadRequest());\n        verifyNoInteractions(service);\n    }\n\n    @Test\n    void redirectsOnceWithExactDestination() throws Exception {\n        when(service.redirect(saved.code())).thenReturn(saved.url());\n        mvc.perform(get(\"/r/{code}\", saved.code()))\n                .andExpect(status().isFound()).andExpect(header().string(\"Location\", saved.url()));\n        verify(service).redirect(saved.code());\n        verifyNoMoreInteractions(service);\n    }\n\n    @Test\n    void initialAnalyticsHasZeroClicksAndNullAccessTime() throws Exception {\n        when(service.analytics(saved.code())).thenReturn(saved);\n        mvc.perform(get(\"/api/urls/{code}/analytics\", saved.code()))\n                .andExpect(status().isOk())\n                .andExpect(jsonPath(\"$.code\").value(saved.code()))\n                .andExpect(jsonPath(\"$.url\").value(saved.url()))\n                .andExpect(jsonPath(\"$.createdAt\").value(\"2026-01-01T00:00:00Z\"))\n                .andExpect(jsonPath(\"$.clickCount\").value(0))\n                .andExpect(jsonPath(\"$.lastAccessedAt\").value(nullValue()));\n        verify(service).analytics(saved.code());\n        verifyNoMoreInteractions(service);\n    }\n\n    @Test\n    void analyticsIncludesRecordedAccessTime() throws Exception {\n        when(service.analytics(saved.code())).thenReturn(new UrlRepository.StoredUrl(\n                saved.code(), saved.url(), saved.createdAt(), 12, Instant.parse(\"2026-01-02T00:00:00Z\")));\n        mvc.perform(get(\"/api/urls/{code}/analytics\", saved.code()))\n                .andExpect(status().isOk()).andExpect(jsonPath(\"$.clickCount\").value(12))\n                .andExpect(jsonPath(\"$.lastAccessedAt\").value(\"2026-01-02T00:00:00Z\"));\n    }\n\n    @Test\n    void mapsUnknownCodesTo404() throws Exception {\n        when(service.redirect(\"missing\")).thenThrow(new UrlService.UnknownCode());\n        when(service.analytics(\"missing\")).thenThrow(new UrlService.UnknownCode());\n        mvc.perform(get(\"/r/missing\")).andExpect(status().isNotFound());\n        mvc.perform(get(\"/api/urls/missing/analytics\")).andExpect(status().isNotFound());\n    }\n\n    @Test\n    void mapsExhaustionTo503AndHidesInternalDetails() throws Exception {\n        when(service.create(saved.url())).thenThrow(new UrlService.AllocationExhausted());\n        mvc.perform(post(\"/api/urls\").contentType(MediaType.APPLICATION_JSON).content(body()))\n                .andExpect(status().isServiceUnavailable());\n        when(service.analytics(\"broken\")).thenThrow(new IllegalStateException(\"private SQL diagnostics\"));\n        mvc.perform(get(\"/api/urls/broken/analytics\"))\n                .andExpect(status().isInternalServerError())\n                .andExpect(content().json(\"{\\\"error\\\":\\\"Internal server error\\\"}\"));\n    }\n}\n",
+              "path": "backend/src/test/java/com/urlshortner/urls/UrlControllerTest.java"
+            },
+            {
+              "content": "# URL service baseline\n\nPOST /api/urls accepts a JSON object with a string `url`. Successful creation returns 201 with `code`, `shortUrl`, `url`, `createdAt` and a Location header pointing to the short URL. The accepted destination is preserved exactly.\n\nPublic short URLs use the configured `shortener.public-base-url`, followed by `/r/{code}`. A configured path prefix is retained and trailing slashes are removed before appending the redirect path. Client Host, servlet origin, request context path and forwarded headers do not determine the public URL. The configured base must be an HTTP/HTTPS URL without credentials, control characters, query or fragment; invalid configuration fails application startup. The existing application.yml supplies the property and its environment override.\n\nGET /r/{code} returns 302 with the destination in Location. One schema-qualified PostgreSQL UPDATE increments click_count, sets last_accessed_at and returns the destination. Clients and acceptance checks must disable redirect following to avoid fetching destinations.\n\nGET /api/urls/{code}/analytics returns `code`, `url`, `createdAt`, `clickCount`, `lastAccessedAt`. Initial values are zero and null. Reads do not account for clicks. Timestamps are UTC instants. Unknown codes return 404; invalid creation bodies return 400; five code collisions return 503. Unexpected errors return a generic 500 response.\n\nValidation uses java.net.URI without destination requests or DNS lookups. It requires HTTP or HTTPS, a valid server host and a port in 0..65535 when supplied. Relative URLs, credentials, malformed authority, empty explicit ports, malformed escapes, raw ISO control characters and percent-encoded ISO control characters are rejected. Non-string URL values are rejected. Destinations are never trimmed or rewritten.\n\nCodes contain eight independently selected SecureRandom base62 characters. At most five inserts are attempted without a surrounding transaction. Only SQLSTATE 23505 with structured metadata identifying url_service.urls.pk_urls_code is retried; other failures propagate. Driver diagnostics are accessed reflectively because PostgreSQL is a runtime-only dependency. Error messages are never parsed to infer collisions.\n\nThe existing V1 migration creates url_service and url_service.urls and remains unchanged. All service queries are schema-qualified. There is no expiration or rate limiting in this baseline; existing related configuration values do not activate those features.\n\n## Supplied verification evidence\n\nAutomated tests: the supplied trusted-runner report for revision 1, source eb14f2c9a4461e52b096a1193154ee33e14071b0, reports a successful Java build and 58 passing JUnit tests with no failures. These results precede the configured-public-base correction. Revised MVC tests have not been executed here. Mock-based tests do not establish live PostgreSQL behavior.\n\nLive acceptance: the same report records passing independent HTTP cases for creation, redirect destination preservation, concurrent accounting, analytics timestamps, unknown links and invalid destinations. The concurrency case reports count 26. This does not establish the 100-redirect procedure below or verify this revision's configured public URL behavior.\n\nPython tests, frontend typecheck and frontend build results were not supplied. No checks were executed during this implementation stage.\n\n## Trusted-runner verification\n\nUse only the trusted Docker runner; never execute generated code on the host. Preserve runner configuration, dependencies and protected acceptance checks. Do not provision cloud services.\n\nRun Java tests using the existing Gradle launcher with `test` in backend. Run Python tests, frontend typecheck and frontend build using the existing runner and manifests. Record each omitted check and its reason. Re-run independent HTTP acceptance for this revision.\n\n1. Use an isolated PostgreSQL database. Confirm Flyway applies the unchanged V1 on a fresh database and inspect constraints and defaults. Verify negative click counts are rejected and real duplicate-code exceptions identify the expected schema, table and constraint.\n2. Configure a public base URL reachable by the runner. POST a valid destination with conflicting Host and forwarded headers. Assert 201 and verify both shortUrl and Location use the configured base. Read analytics and assert zero clicks and null lastAccessedAt.\n3. Disable redirect following and send 100 concurrent GET requests to the returned short URL. Require every response to be 302 with the exact stored Location. After completion, require clickCount 100 and non-null lastAccessedAt no earlier than createdAt.\n4. Repeat analytics reads and verify count and lastAccessedAt remain unchanged. Request unknown redirect and analytics codes, assert 404 and verify no rows were created. Invalid creation requests must also create no rows.\n5. Restart against the same database. Confirm Flyway validates unchanged migrations and the destination and analytics survive.\n6. Report automated tests separately from live database and HTTP checks. Record request totals, response failures, final persisted count and all omitted checks. Only trusted-runner output establishes execution success.\n",
+              "path": "backend/docs/url-service.md"
+            }
+          ],
+          "questions": [],
+          "risks": [
+            "No execution results are available for these replacements.",
+            "Prior live acceptance reported concurrent count 26; it does not establish the documented 100-redirect verification.",
+            "Python tests and frontend typecheck/build results were not supplied."
+          ],
+          "summary": "Creation now uses shortener.public-base-url for shortUrl and Location. Added MVC coverage for conflicting request origins and forwarded headers, and updated verification documentation.",
+          "tasks": [
+            {
+              "acceptance": [
+                "Run Java tests and independent HTTP acceptance against these replacements.",
+                "Run Python tests and frontend typecheck/build, or document each omitted check.",
+                "Report automated tests separately from live runs."
+              ],
+              "dependencies": [],
+              "id": "verify_revision",
+              "title": "Run revised checks through the trusted Docker runner"
+            }
+          ],
+          "verdict": "pass"
+        },
+        "revision": 1,
+        "source_sha": "2b8313ea0bee486ad154150b944f051126719516"
+      },
+      "plan": {
+        "output": {
+          "decisions": [
+            "Use Spring Boot 3.5.16, Java 21, JdbcTemplate, Jakarta Validation and JUnit 5 with existing dependencies only.",
+            "Limit implementation replacements to allowed files under backend/src/ and backend/docs/; preserve manifests, application.yml, the starter application, existing migrations and protected acceptance checks.",
+            "Create the url_service schema and URL table in a new V1 migration only after confirming V1 does not already exist.",
+            "Validate destinations locally without network requests; accept absolute HTTP/HTTPS URLs with valid hosts and reject credentials and control characters.",
+            "Use SecureRandom base62 codes with eight characters and at most five allocation attempts; retry only violations of the named code uniqueness constraint.",
+            "Use PostgreSQL UPDATE ... RETURNING to increment click_count and update last_accessed_at atomically while retrieving the redirect destination.",
+            "Build shortUrl from the request origin without independently interpreting forwarded headers; trusted proxy configuration remains a platform concern.",
+            "Exclude expiration and creation rate limiting because this is the greenfield baseline, not the ambiguous scenario.",
+            "Only the trusted runner may provide execution results; report automated checks and live HTTP runs separately."
+          ],
+          "files": [],
+          "questions": [],
+          "risks": [
+            "Repository contents and runner logs were not supplied, so package names, dependency availability, migration state and execution outcomes remain unverified.",
+            "An existing V1 migration would require a new migration version consistent with repository conventions; it must never be replaced.",
+            "Real PostgreSQL concurrency verification depends on the trusted runner's existing database capabilities.",
+            "Correct public shortUrl origins behind a proxy depend on existing trusted-proxy configuration, which this implementation cannot change."
+          ],
+          "summary": "Plan the baseline Java URL service with PostgreSQL persistence, validated creation, atomic redirect accounting and trusted-runner verification. Expiration and rate limiting are excluded.",
+          "tasks": [
+            {
+              "acceptance": [
+                "Identify the existing Java package, test conventions, available dependencies and workspace allowlist from supplied repository data.",
+                "Confirm that no existing V1 migration would be overwritten and that proposed files avoid all protected paths.",
+                "Document any missing repository information before producing implementation replacements."
+              ],
+              "dependencies": [],
+              "id": "inspect",
+              "title": "Confirm repository conventions and allowed implementation paths"
+            },
+            {
+              "acceptance": [
+                "A new V1 migration creates url_service and a schema-qualified URL table with code, url, created_at, click_count and nullable last_accessed_at.",
+                "A named primary-key or unique constraint enforces code uniqueness; click_count defaults to zero and cannot be negative.",
+                "Repository operations support insertion, analytics lookup and a single UPDATE ... RETURNING redirect operation that increments click_count and updates last_accessed_at.",
+                "Unknown-code lookups return an explicit absent result."
+              ],
+              "dependencies": [
+                "inspect"
+              ],
+              "id": "persistence",
+              "title": "Add schema migration and JdbcTemplate repository"
+            },
+            {
+              "acceptance": [
+                "Creation accepts a JSON body containing url and rejects missing, blank or invalid values with HTTP 400.",
+                "Validation accepts absolute HTTP/HTTPS destinations with a valid host and rejects credentials and control characters without fetching destinations.",
+                "SecureRandom selects eight base62 characters for each allocation attempt.",
+                "Only violations of the code uniqueness constraint trigger retries; allocation stops after five attempts with HTTP 503, and unrelated database failures are not retried.",
+                "Successful allocation preserves the stored URL and creation timestamp for the response."
+              ],
+              "dependencies": [
+                "persistence"
+              ],
+              "id": "creation",
+              "title": "Implement destination validation and bounded code allocation"
+            },
+            {
+              "acceptance": [
+                "POST /api/urls returns HTTP 201 with code, shortUrl, url and createdAt; shortUrl points to /r/{code} using the request origin.",
+                "GET /r/{code} returns HTTP 302 with the stored destination in Location after one atomic accounting operation.",
+                "GET /api/urls/{code}/analytics returns code, url, createdAt, clickCount and lastAccessedAt without incrementing clicks.",
+                "Unknown redirect and analytics codes return HTTP 404.",
+                "New URLs expose clickCount zero and lastAccessedAt null; no expiration or rate-limiting behavior is added."
+              ],
+              "dependencies": [
+                "creation"
+              ],
+              "id": "http",
+              "title": "Expose creation, redirect and analytics endpoints"
+            },
+            {
+              "acceptance": [
+                "Tests cover creation response fields and status, valid HTTP/HTTPS URLs, invalid schemes, missing hosts, credentials, control characters and invalid request bodies.",
+                "Tests cover collision recovery, five-attempt exhaustion and immediate propagation of unrelated database failures.",
+                "Tests cover redirect status and Location, analytics fields, initial analytics values and unknown-code responses.",
+                "Tests verify that analytics does not invoke redirect accounting and each redirect invokes accounting once."
+              ],
+              "dependencies": [
+                "http"
+              ],
+              "id": "unit_tests",
+              "title": "Add focused JUnit 5 coverage"
+            },
+            {
+              "acceptance": [
+                "Provide a verification procedure compatible with existing runner capabilities and dependencies, without changing platform configuration or protected checks.",
+                "Against real PostgreSQL, create one URL, perform 100 concurrent successful redirects and verify a final clickCount of 100 with non-null lastAccessedAt.",
+                "Verify that analytics reads leave the count unchanged and unknown-code redirects create no records.",
+                "Database test doubles are clearly distinguished from real PostgreSQL verification."
+              ],
+              "dependencies": [
+                "http"
+              ],
+              "id": "database_verification",
+              "title": "Define PostgreSQL concurrency verification"
+            },
+            {
+              "acceptance": [
+                "Documentation under backend/docs/ describes endpoints, validation, collision retry bounds, schema setup and local verification commands.",
+                "The trusted runner executes Python tests, frontend typecheck/build, Java tests and independent HTTP acceptance checks, or records each check not executed and its reason.",
+                "Delivery reports automated tests and live runs separately and includes only results supplied by the trusted runner.",
+                "No platform changes, dependency additions, cloud provisioning or deployment are required."
+              ],
+              "dependencies": [
+                "unit_tests",
+                "database_verification"
+              ],
+              "id": "delivery",
+              "title": "Document behavior and collect trusted-runner results"
+            }
+          ],
+          "verdict": "pass"
+        },
+        "revision": 1,
+        "source_sha": "39e155fce4b80db24bb5235c841295fb96acd764"
+      },
+      "promotion": {
+        "at": "2026-10-14T13:02:15.572673+00:00",
+        "health_check": "passed",
+        "jar_sha256": "5b8086d2f26a6a009cf5c7f75076ec0a631a1932c05acc57b78c3b97f2fc4202",
+        "source_sha": "2b8313ea0bee486ad154150b944f051126719516"
+      },
+      "release_approval": {
+        "approval": {
+          "approval_id": "06ae90b31f7a43af8b104e71e4c48b80",
+          "artifact_hash": "39562773b2058159bcc543c4dade527ca5eb304f65afe4b67bbbcdbe8110d59f",
+          "kind": "promotion",
+          "reason": "Review the exact validated source, test evidence and local service promotion",
+          "revision": 1,
+          "source_sha": "2b8313ea0bee486ad154150b944f051126719516"
+        },
+        "decision": {
+          "approved": true,
+          "reason": "Approved through the local Workbench UI"
+        }
+      },
+      "requirements": {
+        "output": {
+          "decisions": [
+            "Use Spring Boot 3.5.16, Java 21, JdbcTemplate, Jakarta Validation and JUnit 5 without new dependencies.",
+            "POST /api/urls accepts {url} and returns HTTP 201 with code, shortUrl, url and createdAt.",
+            "GET /r/{code} atomically increments clickCount, updates lastAccessedAt and returns HTTP 302 with the stored destination in Location.",
+            "GET /api/urls/{code}/analytics returns code, url, createdAt, clickCount and lastAccessedAt; initial clickCount is zero and lastAccessedAt is null.",
+            "Accept absolute HTTP/HTTPS URLs with a valid host; reject credentials and control characters without fetching destinations.",
+            "Generate cryptographically random base62 codes, enforce database uniqueness and retry only code uniqueness conflicts with a bounded attempt count.",
+            "Use PostgreSQL tables in the url_service schema. For greenfield setup, create the schema in a new V1 Flyway migration; never alter existing migrations.",
+            "Return HTTP 400 for invalid creation requests, HTTP 404 for unknown codes and HTTP 503 if code allocation retries are exhausted.",
+            "Exclude expiration and rate limiting; context values max_expiry_days and creation_limit_per_minute do not apply to this baseline.",
+            "Derive shortUrl from the application's request origin without trusting unconfigured forwarded headers.",
+            "Implementation changes are limited to backend/src/ and backend/docs/, subject to workspace allowlists and protected-file restrictions."
+          ],
+          "files": [],
+          "questions": [],
+          "risks": [
+            "The repository and trusted-runner results were not provided; no execution or test success is asserted.",
+            "If a V1 migration already exists, schema creation must use a new migration consistent with repository conventions instead of modifying it.",
+            "Deployment origin and proxy configuration affect shortUrl correctness; forwarded headers require an explicit trusted-proxy configuration."
+          ],
+          "summary": "Requirements are ready for implementation of a PostgreSQL-backed Java URL shortener with validated destinations and atomic redirect analytics.",
+          "tasks": [
+            {
+              "acceptance": [
+                "A new greenfield V1 migration creates url_service and the URL table without modifying existing migrations.",
+                "Persist code, url, createdAt, clickCount and nullable lastAccessedAt; enforce unique codes.",
+                "Redirect accounting uses one atomic database update and safely handles concurrent requests."
+              ],
+              "dependencies": [],
+              "id": "persistence",
+              "title": "Add schema and JdbcTemplate persistence"
+            },
+            {
+              "acceptance": [
+                "Valid creation requests return HTTP 201 with code, shortUrl, url and createdAt.",
+                "Validation rejects unsupported schemes, missing hosts, credentials and control characters without network access.",
+                "SecureRandom generates base62 codes; uniqueness collisions trigger bounded retries, while unrelated database errors are not retried."
+              ],
+              "dependencies": [
+                "persistence"
+              ],
+              "id": "creation",
+              "title": "Implement validated URL creation and code allocation"
+            },
+            {
+              "acceptance": [
+                "Existing codes return HTTP 302 with the stored URL in Location and increment clickCount exactly once per successful redirect lookup.",
+                "Analytics exposes the required fields and does not increment clicks.",
+                "Unknown codes return HTTP 404; initial analytics reports zero clicks and null lastAccessedAt."
+              ],
+              "dependencies": [
+                "persistence"
+              ],
+              "id": "redirect_analytics",
+              "title": "Implement redirects and analytics"
+            },
+            {
+              "acceptance": [
+                "JUnit 5 tests cover creation, validation, collisions, retry exhaustion, redirects, analytics and unknown codes.",
+                "Database verification demonstrates atomic counting under concurrent redirects.",
+                "The trusted runner executes Python tests, frontend typecheck/build, Java tests and independent HTTP acceptance checks, or documents checks not executed.",
+                "Report automated tests and live runs separately; test doubles are not reported as successful live runs."
+              ],
+              "dependencies": [
+                "creation",
+                "redirect_analytics"
+              ],
+              "id": "verification",
+              "title": "Add tests and document trusted-runner verification"
+            }
+          ],
+          "verdict": "pass"
+        },
+        "revision": 1,
+        "source_sha": "39e155fce4b80db24bb5235c841295fb96acd764"
+      },
+      "review": {
+        "output": {
+          "decisions": [
+            "Public short URLs use shortener.public-base-url and ignore client Host and forwarded headers, correctly superseding the upstream request-origin design.",
+            "Destination validation rejects unsupported schemes, missing or malformed hosts, credentials and control characters without network access.",
+            "SecureRandom generates eight-character base62 codes; allocation retries at most five times and only for the identified PostgreSQL code constraint.",
+            "Schema-qualified JdbcTemplate operations persist URLs and atomically count redirects using UPDATE ... RETURNING; analytics reads do not increment counts.",
+            "The existing V1 creates the url_service schema and required table. No dependency changes, expiration or rate limiting are introduced.",
+            "Automated validation reports 65 tests with zero failures or errors. Live HTTP acceptance separately reports passing cases, including concurrent accounting with count 26; this does not establish a 100-request run.",
+            "No concrete blocking source defect or failed supplied validation was identified. Missing platform Python/frontend results do not block this target review."
+          ],
+          "files": [],
+          "questions": [],
+          "risks": [
+            "backend/docs/url-service.md references older validation evidence and says revised MVC tests remain unexecuted; update it to reflect the supplied successful 65-test report for source 2b8313ea0bee486ad154150b944f051126719516.",
+            "Supplied live acceptance does not explicitly demonstrate conflicting Host/forwarded-header behavior, restart persistence or 100 concurrent redirects. Configured-origin behavior is covered by supplied passing MVC tests."
+          ],
+          "summary": "Pass: the Java service satisfies the baseline requirements, and supplied trusted-runner validation reports a successful build, 65 passing JUnit tests and passing independent HTTP acceptance.",
+          "tasks": [],
+          "verdict": "pass"
+        },
+        "revision": 1,
+        "source_sha": "2b8313ea0bee486ad154150b944f051126719516"
+      },
+      "summary": {
+        "diff": "diff --git a/backend/docs/url-service.md b/backend/docs/url-service.md\nnew file mode 100644\nindex 0000000..11c80ac\n--- /dev/null\n+++ b/backend/docs/url-service.md\n@@ -0,0 +1,36 @@\n+# URL service baseline\n+\n+POST /api/urls accepts a JSON object with a string `url`. Successful creation returns 201 with `code`, `shortUrl`, `url`, `createdAt` and a Location header pointing to the short URL. The accepted destination is preserved exactly.\n+\n+Public short URLs use the configured `shortener.public-base-url`, followed by `/r/{code}`. A configured path prefix is retained and trailing slashes are removed before appending the redirect path. Client Host, servlet origin, request context path and forwarded headers do not determine the public URL. The configured base must be an HTTP/HTTPS URL without credentials, control characters, query or fragment; invalid configuration fails application startup. The existing application.yml supplies the property and its environment override.\n+\n+GET /r/{code} returns 302 with the destination in Location. One schema-qualified PostgreSQL UPDATE increments click_count, sets last_accessed_at and returns the destination. Clients and acceptance checks must disable redirect following to avoid fetching destinations.\n+\n+GET /api/urls/{code}/analytics returns `code`, `url`, `createdAt`, `clickCount`, `lastAccessedAt`. Initial values are zero and null. Reads do not account for clicks. Timestamps are UTC instants. Unknown codes return 404; invalid creation bodies return 400; five code collisions return 503. Unexpected errors return a generic 500 response.\n+\n+Validation uses java.net.URI without destination requests or DNS lookups. It requires HTTP or HTTPS, a valid server host and a port in 0..65535 when supplied. Relative URLs, credentials, malformed authority, empty explicit ports, malformed escapes, raw ISO control characters and percent-encoded ISO control characters are rejected. Non-string URL values are rejected. Destinations are never trimmed or rewritten.\n+\n+Codes contain eight independently selected SecureRandom base62 characters. At most five inserts are attempted without a surrounding transaction. Only SQLSTATE 23505 with structured metadata identifying url_service.urls.pk_urls_code is retried; other failures propagate. Driver diagnostics are accessed reflectively because PostgreSQL is a runtime-only dependency. Error messages are never parsed to infer collisions.\n+\n+The existing V1 migration creates url_service and url_service.urls and remains unchanged. All service queries are schema-qualified. There is no expiration or rate limiting in this baseline; existing related configuration values do not activate those features.\n+\n+## Supplied verification evidence\n+\n+Automated tests: the supplied trusted-runner report for revision 1, source eb14f2c9a4461e52b096a1193154ee33e14071b0, reports a successful Java build and 58 passing JUnit tests with no failures. These results precede the configured-public-base correction. Revised MVC tests have not been executed here. Mock-based tests do not establish live PostgreSQL behavior.\n+\n+Live acceptance: the same report records passing independent HTTP cases for creation, redirect destination preservation, concurrent accounting, analytics timestamps, unknown links and invalid destinations. The concurrency case reports count 26. This does not establish the 100-redirect procedure below or verify this revision's configured public URL behavior.\n+\n+Python tests, frontend typecheck and frontend build results were not supplied. No checks were executed during this implementation stage.\n+\n+## Trusted-runner verification\n+\n+Use only the trusted Docker runner; never execute generated code on the host. Preserve runner configuration, dependencies and protected acceptance checks. Do not provision cloud services.\n+\n+Run Java tests using the existing Gradle launcher with `test` in backend. Run Python tests, frontend typecheck and frontend build using the existing runner and manifests. Record each omitted check and its reason. Re-run independent HTTP acceptance for this revision.\n+\n+1. Use an isolated PostgreSQL database. Confirm Flyway applies the unchanged V1 on a fresh database and inspect constraints and defaults. Verify negative click counts are rejected and real duplicate-code exceptions identify the expected schema, table and constraint.\n+2. Configure a public base URL reachable by the runner. POST a valid destination with conflicting Host and forwarded headers. Assert 201 and verify both shortUrl and Location use the configured base. Read analytics and assert zero clicks and null lastAccessedAt.\n+3. Disable redirect following and send 100 concurrent GET requests to the returned short URL. Require every response to be 302 with the exact stored Location. After completion, require clickCount 100 and non-null lastAccessedAt no earlier than createdAt.\n+4. Repeat analytics reads and verify count and lastAccessedAt remain unchanged. Request unknown redirect and analytics codes, assert 404 and verify no rows were created. Invalid creation requests must also create no rows.\n+5. Restart against the same database. Confirm Flyway validates unchanged migrations and the destination and analytics survive.\n+6. Report automated tests separately from live database and HTTP checks. Record request totals, response failures, final persisted count and all omitted checks. Only trusted-runner output establishes execution success.\ndiff --git a/backend/src/main/java/com/urlshortner/urls/CodeGenerator.java b/backend/src/main/java/com/urlshortner/urls/CodeGenerator.java\nnew file mode 100644\nindex 0000000..f6c47ec\n--- /dev/null\n+++ b/backend/src/main/java/com/urlshortner/urls/CodeGenerator.java\n@@ -0,0 +1,18 @@\n+package com.urlshortner.urls;\n+\n+import java.security.SecureRandom;\n+import org.springframework.stereotype.Component;\n+\n+@Component\n+public class CodeGenerator {\n+    private static final String ALPHABET = \"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz\";\n+    private final SecureRandom random = new SecureRandom();\n+\n+    public String next() {\n+        char[] code = new char[8];\n+        for (int i = 0; i < code.length; i++) {\n+            code[i] = ALPHABET.charAt(random.nextInt(ALPHABET.length()));\n+        }\n+        return new String(code);\n+    }\n+}\ndiff --git a/backend/src/main/java/com/urlshortner/urls/Destination.java b/backend/src/main/java/com/urlshortner/urls/Destination.java\nnew file mode 100644\nindex 0000000..2af69b7\n--- /dev/null\n+++ b/backend/src/main/java/com/urlshortner/urls/Destination.java\n@@ -0,0 +1,34 @@\n+package com.urlshortner.urls;\n+\n+import java.net.URI;\n+import java.net.URISyntaxException;\n+\n+final class Destination {\n+    private Destination() {}\n+\n+    static boolean valid(String value) {\n+        if (value == null || value.isBlank()) return false;\n+        for (int i = 0; i < value.length(); i++) {\n+            char c = value.charAt(i);\n+            if (Character.isISOControl(c)) return false;\n+            if (c == '%' && i + 2 < value.length()) {\n+                int high = Character.digit(value.charAt(i + 1), 16);\n+                int low = Character.digit(value.charAt(i + 2), 16);\n+                if (high >= 0 && low >= 0 && Character.isISOControl((char) (high * 16 + low))) {\n+                    return false;\n+                }\n+            }\n+        }\n+        try {\n+            URI uri = new URI(value).parseServerAuthority();\n+            String scheme = uri.getScheme();\n+            if (!(\"http\".equalsIgnoreCase(scheme) || \"https\".equalsIgnoreCase(scheme))) return false;\n+            if (uri.getHost() == null || uri.getHost().isBlank() || uri.getRawUserInfo() != null) return false;\n+            if (uri.getPort() < -1 || uri.getPort() > 65535) return false;\n+            // URI accepts an empty explicit port; reject it as malformed authority.\n+            return !uri.getRawAuthority().endsWith(\":\");\n+        } catch (URISyntaxException | IllegalArgumentException exception) {\n+            return false;\n+        }\n+    }\n+}\ndiff --git a/backend/src/main/java/com/urlshortner/urls/UrlController.java b/backend/src/main/java/com/urlshortner/urls/UrlController.java\nnew file mode 100644\nindex 0000000..ba03268\n--- /dev/null\n+++ b/backend/src/main/java/com/urlshortner/urls/UrlController.java\n@@ -0,0 +1,48 @@\n+package com.urlshortner.urls;\n+\n+import com.fasterxml.jackson.databind.JsonNode;\n+import jakarta.validation.Valid;\n+import java.net.URI;\n+import java.time.Instant;\n+import org.springframework.beans.factory.annotation.Value;\n+import org.springframework.http.ResponseEntity;\n+import org.springframework.web.bind.annotation.*;\n+\n+@RestController\n+public class UrlController {\n+    public record CreateRequest(@ValidDestination JsonNode url) {}\n+    public record Created(String code, String shortUrl, String url, Instant createdAt) {}\n+    public record Analytics(String code, String url, Instant createdAt, long clickCount, Instant lastAccessedAt) {}\n+\n+    private final UrlService service;\n+    private final String publicBaseUrl;\n+\n+    public UrlController(UrlService service,\n+            @Value(\"${shortener.public-base-url}\") String publicBaseUrl) {\n+        this.service = service;\n+        URI base = URI.create(publicBaseUrl);\n+        if (!Destination.valid(publicBaseUrl) || base.getRawQuery() != null || base.getRawFragment() != null) {\n+            throw new IllegalArgumentException(\"Invalid public base URL configuration\");\n+        }\n+        this.publicBaseUrl = publicBaseUrl.replaceAll(\"/+$\", \"\");\n+    }\n+\n+    @PostMapping(\"/api/urls\")\n+    public ResponseEntity<Created> create(@Valid @RequestBody CreateRequest body) {\n+        UrlRepository.StoredUrl saved = service.create(body.url().textValue());\n+        String shortUrl = publicBaseUrl + \"/r/\" + saved.code();\n+        return ResponseEntity.created(URI.create(shortUrl))\n+                .body(new Created(saved.code(), shortUrl, saved.url(), saved.createdAt()));\n+    }\n+\n+    @GetMapping(\"/r/{code}\")\n+    public ResponseEntity<Void> redirect(@PathVariable(\"code\") String code) {\n+        return ResponseEntity.status(302).location(URI.create(service.redirect(code))).build();\n+    }\n+\n+    @GetMapping(\"/api/urls/{code}/analytics\")\n+    public Analytics analytics(@PathVariable(\"code\") String code) {\n+        UrlRepository.StoredUrl saved = service.analytics(code);\n+        return new Analytics(saved.code(), saved.url(), saved.createdAt(), saved.clickCount(), saved.lastAccessedAt());\n+    }\n+}\ndiff --git a/backend/src/main/java/com/urlshortner/urls/UrlErrors.java b/backend/src/main/java/com/urlshortner/urls/UrlErrors.java\nnew file mode 100644\nindex 0000000..ba80940\n--- /dev/null\n+++ b/backend/src/main/java/com/urlshortner/urls/UrlErrors.java\n@@ -0,0 +1,32 @@\n+package com.urlshortner.urls;\n+\n+import org.springframework.http.ResponseEntity;\n+import org.springframework.http.converter.HttpMessageNotReadableException;\n+import org.springframework.web.bind.MethodArgumentNotValidException;\n+import org.springframework.web.bind.annotation.ExceptionHandler;\n+import org.springframework.web.bind.annotation.RestControllerAdvice;\n+\n+@RestControllerAdvice(assignableTypes = UrlController.class)\n+public class UrlErrors {\n+    public record ErrorBody(String error) {}\n+\n+    @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class, IllegalArgumentException.class})\n+    public ResponseEntity<ErrorBody> invalid(Exception exception) {\n+        return ResponseEntity.badRequest().body(new ErrorBody(\"Invalid creation request\"));\n+    }\n+\n+    @ExceptionHandler(UrlService.UnknownCode.class)\n+    public ResponseEntity<ErrorBody> missing() {\n+        return ResponseEntity.status(404).body(new ErrorBody(\"Unknown code\"));\n+    }\n+\n+    @ExceptionHandler(UrlService.AllocationExhausted.class)\n+    public ResponseEntity<ErrorBody> exhausted() {\n+        return ResponseEntity.status(503).body(new ErrorBody(\"Code allocation unavailable\"));\n+    }\n+\n+    @ExceptionHandler(Exception.class)\n+    public ResponseEntity<ErrorBody> internal(Exception exception) {\n+        return ResponseEntity.internalServerError().body(new ErrorBody(\"Internal server error\"));\n+    }\n+}\ndiff --git a/backend/src/main/java/com/urlshortner/urls/UrlRepository.java b/backend/src/main/java/com/urlshortner/urls/UrlRepository.java\nnew file mode 100644\nindex 0000000..a1a565f\n--- /dev/null\n+++ b/backend/src/main/java/com/urlshortner/urls/UrlRepository.java\n@@ -0,0 +1,85 @@\n+package com.urlshortner.urls;\n+\n+import java.lang.reflect.InvocationTargetException;\n+import java.sql.SQLException;\n+import java.time.Instant;\n+import java.time.OffsetDateTime;\n+import java.util.Collections;\n+import java.util.IdentityHashMap;\n+import java.util.Optional;\n+import java.util.Set;\n+import org.springframework.dao.DataAccessException;\n+import org.springframework.jdbc.core.JdbcTemplate;\n+import org.springframework.jdbc.core.RowMapper;\n+import org.springframework.stereotype.Repository;\n+\n+@Repository\n+public class UrlRepository {\n+    public record StoredUrl(String code, String url, Instant createdAt, long clickCount, Instant lastAccessedAt) {}\n+\n+    private static final RowMapper<StoredUrl> MAPPER = (rs, row) -> {\n+        OffsetDateTime lastAccessed = rs.getObject(\"last_accessed_at\", OffsetDateTime.class);\n+        return new StoredUrl(rs.getString(\"code\"), rs.getString(\"url\"),\n+                rs.getObject(\"created_at\", OffsetDateTime.class).toInstant(),\n+                rs.getLong(\"click_count\"), lastAccessed == null ? null : lastAccessed.toInstant());\n+    };\n+\n+    private final JdbcTemplate jdbc;\n+\n+    public UrlRepository(JdbcTemplate jdbc) {\n+        this.jdbc = jdbc;\n+    }\n+\n+    public StoredUrl insert(String code, String url) {\n+        return jdbc.queryForObject(\"\"\"\n+                INSERT INTO url_service.urls (code, url) VALUES (?, ?)\n+                RETURNING code, url, created_at, click_count, last_accessed_at\n+                \"\"\", MAPPER, code, url);\n+    }\n+\n+    public Optional<StoredUrl> find(String code) {\n+        return jdbc.query(\"\"\"\n+                SELECT code, url, created_at, click_count, last_accessed_at\n+                FROM url_service.urls WHERE code = ?\n+                \"\"\", MAPPER, code).stream().findFirst();\n+    }\n+\n+    public Optional<String> recordRedirect(String code) {\n+        return jdbc.query(\"\"\"\n+                UPDATE url_service.urls\n+                SET click_count = click_count + 1, last_accessed_at = clock_timestamp()\n+                WHERE code = ? RETURNING url\n+                \"\"\", (rs, row) -> rs.getString(\"url\"), code).stream().findFirst();\n+    }\n+\n+    static boolean isCodeConflict(DataAccessException failure) {\n+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());\n+        return isCodeConflict(failure, seen);\n+    }\n+\n+    private static boolean isCodeConflict(Throwable failure, Set<Throwable> seen) {\n+        if (failure == null || !seen.add(failure)) return false;\n+        if (failure instanceof SQLException sql) {\n+            if (\"23505\".equals(sql.getSQLState()) && namedCodeConstraint(sql)) return true;\n+            if (isCodeConflict(sql.getNextException(), seen)) return true;\n+        }\n+        return isCodeConflict(failure.getCause(), seen);\n+    }\n+\n+    private static boolean namedCodeConstraint(SQLException failure) {\n+        // The PostgreSQL driver is runtime-only. Read its structured diagnostics,\n+        // never localized message text, and fail closed for unknown drivers.\n+        if (!failure.getClass().getName().equals(\"org.postgresql.util.PSQLException\")) return false;\n+        try {\n+            Object detail = failure.getClass().getMethod(\"getServerErrorMessage\").invoke(failure);\n+            if (detail == null) return false;\n+            Object constraint = detail.getClass().getMethod(\"getConstraint\").invoke(detail);\n+            Object schema = detail.getClass().getMethod(\"getSchema\").invoke(detail);\n+            Object table = detail.getClass().getMethod(\"getTable\").invoke(detail);\n+            return \"pk_urls_code\".equals(constraint)\n+                    && \"url_service\".equals(schema) && \"urls\".equals(table);\n+        } catch (ReflectiveOperationException | SecurityException exception) {\n+            return false;\n+        }\n+    }\n+}\ndiff --git a/backend/src/main/java/com/urlshortner/urls/UrlService.java b/backend/src/main/java/com/urlshortner/urls/UrlService.java\nnew file mode 100644\nindex 0000000..89cc784\n--- /dev/null\n+++ b/backend/src/main/java/com/urlshortner/urls/UrlService.java\n@@ -0,0 +1,40 @@\n+package com.urlshortner.urls;\n+\n+import org.springframework.dao.DataAccessException;\n+import org.springframework.stereotype.Service;\n+\n+@Service\n+public class UrlService {\n+    public static final class UnknownCode extends RuntimeException {}\n+    public static final class AllocationExhausted extends RuntimeException {}\n+\n+    private final UrlRepository repository;\n+    private final CodeGenerator codes;\n+\n+    public UrlService(UrlRepository repository, CodeGenerator codes) {\n+        this.repository = repository;\n+        this.codes = codes;\n+    }\n+\n+    // Deliberately no surrounding transaction: PostgreSQL uniqueness failures\n+    // must not leave subsequent allocation attempts in an aborted transaction.\n+    public UrlRepository.StoredUrl create(String url) {\n+        if (!Destination.valid(url)) throw new IllegalArgumentException(\"Invalid destination\");\n+        for (int attempt = 0; attempt < 5; attempt++) {\n+            try {\n+                return repository.insert(codes.next(), url);\n+            } catch (DataAccessException exception) {\n+                if (!UrlRepository.isCodeConflict(exception)) throw exception;\n+            }\n+        }\n+        throw new AllocationExhausted();\n+    }\n+\n+    public String redirect(String code) {\n+        return repository.recordRedirect(code).orElseThrow(UnknownCode::new);\n+    }\n+\n+    public UrlRepository.StoredUrl analytics(String code) {\n+        return repository.find(code).orElseThrow(UnknownCode::new);\n+    }\n+}\ndiff --git a/backend/src/main/java/com/urlshortner/urls/ValidDestination.java b/backend/src/main/java/com/urlshortner/urls/ValidDestination.java\nnew file mode 100644\nindex 0000000..aa06e81\n--- /dev/null\n+++ b/backend/src/main/java/com/urlshortner/urls/ValidDestination.java\n@@ -0,0 +1,27 @@\n+package com.urlshortner.urls;\n+\n+import com.fasterxml.jackson.databind.JsonNode;\n+import jakarta.validation.Constraint;\n+import jakarta.validation.ConstraintValidator;\n+import jakarta.validation.ConstraintValidatorContext;\n+import jakarta.validation.Payload;\n+import java.lang.annotation.Retention;\n+import java.lang.annotation.Target;\n+import static java.lang.annotation.ElementType.*;\n+import static java.lang.annotation.RetentionPolicy.RUNTIME;\n+\n+@Target({FIELD, PARAMETER, RECORD_COMPONENT, ANNOTATION_TYPE})\n+@Retention(RUNTIME)\n+@Constraint(validatedBy = ValidDestination.Validator.class)\n+public @interface ValidDestination {\n+    String message() default \"url must be an HTTP or HTTPS destination without credentials or control characters\";\n+    Class<?>[] groups() default {};\n+    Class<? extends Payload>[] payload() default {};\n+\n+    class Validator implements ConstraintValidator<ValidDestination, JsonNode> {\n+        @Override\n+        public boolean isValid(JsonNode value, ConstraintValidatorContext context) {\n+            return value != null && value.isTextual() && Destination.valid(value.textValue());\n+        }\n+    }\n+}\ndiff --git a/backend/src/main/resources/db/migration/V1__create_url_service.sql b/backend/src/main/resources/db/migration/V1__create_url_service.sql\nnew file mode 100644\nindex 0000000..cdc1f7e\n--- /dev/null\n+++ b/backend/src/main/resources/db/migration/V1__create_url_service.sql\n@@ -0,0 +1,11 @@\n+CREATE SCHEMA IF NOT EXISTS url_service;\n+\n+CREATE TABLE url_service.urls (\n+    code VARCHAR(8) NOT NULL,\n+    url TEXT NOT NULL,\n+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,\n+    click_count BIGINT NOT NULL DEFAULT 0,\n+    last_accessed_at TIMESTAMPTZ,\n+    CONSTRAINT pk_urls_code PRIMARY KEY (code),\n+    CONSTRAINT ck_urls_click_count CHECK (click_count >= 0)\n+);\ndiff --git a/backend/src/test/java/com/urlshortner/urls/DestinationTest.java b/backend/src/test/java/com/urlshortner/urls/DestinationTest.java\nnew file mode 100644\nindex 0000000..f6ec337\n--- /dev/null\n+++ b/backend/src/test/java/com/urlshortner/urls/DestinationTest.java\n@@ -0,0 +1,32 @@\n+package com.urlshortner.urls;\n+\n+import org.junit.jupiter.params.ParameterizedTest;\n+import org.junit.jupiter.params.provider.NullAndEmptySource;\n+import org.junit.jupiter.params.provider.ValueSource;\n+import static org.junit.jupiter.api.Assertions.*;\n+\n+class DestinationTest {\n+    @ParameterizedTest\n+    @ValueSource(strings = {\n+            \"http://example.com\", \"https://example.com:8443/a?x=1#part\",\n+            \"HTTPS://example.com/path%20name\", \"http://localhost:8080/\", \"https://[::1]/\"\n+    })\n+    void acceptsHttpDestinations(String value) {\n+        assertTrue(Destination.valid(value));\n+    }\n+\n+    @ParameterizedTest\n+    @NullAndEmptySource\n+    @ValueSource(strings = {\n+            \" \", \"/relative\", \"ftp://example.com\", \"https:///path\", \"https://\",\n+            \"https://user@example.com\", \"https://user:password@example.com\",\n+            \"https://example.com/\\r\", \"https://example.com/\\n\", \"https://example.com/\\t\",\n+            \"https://example.com/\\u0000\", \"https://example.com/%0d\", \"https://example.com/%0A\",\n+            \"https://example.com/%7f\", \"https://example.com/%ZZ\", \"https://example.com:abc/\",\n+            \"https://example.com:65536/\", \"https://example.com:/\", \" https://example.com\",\n+            \"https://example.com\\\\@evil.example/\", \"https://bad host/\"\n+    })\n+    void rejectsInvalidDestinations(String value) {\n+        assertFalse(Destination.valid(value));\n+    }\n+}\ndiff --git a/backend/src/test/java/com/urlshortner/urls/UrlControllerTest.java b/backend/src/test/java/com/urlshortner/urls/UrlControllerTest.java\nnew file mode 100644\nindex 0000000..3a98dc4\n--- /dev/null\n+++ b/backend/src/test/java/com/urlshortner/urls/UrlControllerTest.java\n@@ -0,0 +1,158 @@\n+package com.urlshortner.urls;\n+\n+import com.fasterxml.jackson.databind.SerializationFeature;\n+import java.time.Instant;\n+import org.junit.jupiter.api.AfterEach;\n+import org.junit.jupiter.api.BeforeEach;\n+import org.junit.jupiter.api.Test;\n+import org.junit.jupiter.params.ParameterizedTest;\n+import org.junit.jupiter.params.provider.ValueSource;\n+import org.springframework.http.MediaType;\n+import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;\n+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;\n+import org.springframework.test.web.servlet.MockMvc;\n+import org.springframework.test.web.servlet.setup.MockMvcBuilders;\n+import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;\n+import static org.hamcrest.Matchers.nullValue;\n+import static org.junit.jupiter.api.Assertions.assertThrows;\n+import static org.mockito.Mockito.*;\n+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;\n+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;\n+\n+class UrlControllerTest {\n+    private final UrlService service = mock(UrlService.class);\n+    private final LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();\n+    private final UrlRepository.StoredUrl saved = new UrlRepository.StoredUrl(\n+            \"Ab12Cd34\", \"https://example.com/a?b=1#part\", Instant.parse(\"2026-01-01T00:00:00Z\"), 0, null);\n+    private MockMvc mvc;\n+\n+    @BeforeEach\n+    void setUp() {\n+        validator.afterPropertiesSet();\n+        mvc = mvcFor(\"https://public.example:8443/links/\");\n+    }\n+\n+    private MockMvc mvcFor(String base) {\n+        var mapper = Jackson2ObjectMapperBuilder.json()\n+                .featuresToDisable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS).build();\n+        return MockMvcBuilders.standaloneSetup(new UrlController(service, base))\n+                .setControllerAdvice(new UrlErrors()).setValidator(validator)\n+                .setMessageConverters(new MappingJackson2HttpMessageConverter(mapper)).build();\n+    }\n+\n+    @AfterEach\n+    void closeValidator() {\n+        validator.close();\n+    }\n+\n+    @Test\n+    void creationUsesConfiguredBaseDespiteConflictingClientOrigin() throws Exception {\n+        when(service.create(saved.url())).thenReturn(saved);\n+        mvc.perform(post(\"/app/api/urls\").contextPath(\"/app\")\n+                        .with(request -> {\n+                            request.setScheme(\"http\");\n+                            request.setServerName(\"untrusted.example\");\n+                            request.setServerPort(9999);\n+                            return request;\n+                        })\n+                        .header(\"Host\", \"attacker.example:9999\")\n+                        .header(\"Forwarded\", \"proto=http;host=forwarded.example\")\n+                        .header(\"X-Forwarded-Host\", \"forwarded.example\")\n+                        .header(\"X-Forwarded-Proto\", \"http\")\n+                        .header(\"X-Forwarded-Port\", \"80\")\n+                        .contentType(MediaType.APPLICATION_JSON).content(body()))\n+                .andExpect(status().isCreated())\n+                .andExpect(header().string(\"Location\", \"https://public.example:8443/links/r/Ab12Cd34\"))\n+                .andExpect(jsonPath(\"$.code\").value(saved.code()))\n+                .andExpect(jsonPath(\"$.shortUrl\").value(\"https://public.example:8443/links/r/Ab12Cd34\"))\n+                .andExpect(jsonPath(\"$.url\").value(saved.url()))\n+                .andExpect(jsonPath(\"$.createdAt\").value(\"2026-01-01T00:00:00Z\"));\n+        verify(service).create(saved.url());\n+        verifyNoMoreInteractions(service);\n+    }\n+\n+    @ParameterizedTest\n+    @ValueSource(strings = {\"http://127.0.0.1:8000\", \"http://127.0.0.1:8000/\"})\n+    void rootBaseProducesOnePathSeparator(String base) throws Exception {\n+        when(service.create(saved.url())).thenReturn(saved);\n+        mvcFor(base).perform(post(\"/api/urls\").contentType(MediaType.APPLICATION_JSON).content(body()))\n+                .andExpect(status().isCreated())\n+                .andExpect(header().string(\"Location\", \"http://127.0.0.1:8000/r/Ab12Cd34\"))\n+                .andExpect(jsonPath(\"$.shortUrl\").value(\"http://127.0.0.1:8000/r/Ab12Cd34\"));\n+    }\n+\n+    @ParameterizedTest\n+    @ValueSource(strings = {\"/relative\", \"ftp://example.com\", \"https://user@example.com\",\n+            \"https://example.com/?query=1\", \"https://example.com/#fragment\"})\n+    void rejectsInvalidPublicBaseConfiguration(String base) {\n+        assertThrows(IllegalArgumentException.class, () -> new UrlController(service, base));\n+    }\n+\n+    private String body() {\n+        return \"{\\\"url\\\":\\\"\" + saved.url() + \"\\\"}\";\n+    }\n+\n+    @ParameterizedTest\n+    @ValueSource(strings = {\n+            \"\", \"{\", \"null\", \"[]\", \"{}\", \"{\\\"url\\\":null}\", \"{\\\"url\\\":42}\",\n+            \"{\\\"url\\\":true}\", \"{\\\"url\\\":{}}\", \"{\\\"url\\\":[]}\", \"{\\\"url\\\":\\\"\\\"}\",\n+            \"{\\\"url\\\":\\\"ftp://example.com\\\"}\", \"{\\\"url\\\":\\\"https://user@example.com\\\"}\",\n+            \"{\\\"url\\\":\\\"https://example.com/\\\\r\\\\n\\\"}\"\n+    })\n+    void rejectsInvalidBodiesWithoutCallingService(String body) throws Exception {\n+        mvc.perform(post(\"/api/urls\").contentType(MediaType.APPLICATION_JSON).content(body))\n+                .andExpect(status().isBadRequest());\n+        verifyNoInteractions(service);\n+    }\n+\n+    @Test\n+    void redirectsOnceWithExactDestination() throws Exception {\n+        when(service.redirect(saved.code())).thenReturn(saved.url());\n+        mvc.perform(get(\"/r/{code}\", saved.code()))\n+                .andExpect(status().isFound()).andExpect(header().string(\"Location\", saved.url()));\n+        verify(service).redirect(saved.code());\n+        verifyNoMoreInteractions(service);\n+    }\n+\n+    @Test\n+    void initialAnalyticsHasZeroClicksAndNullAccessTime() throws Exception {\n+        when(service.analytics(saved.code())).thenReturn(saved);\n+        mvc.perform(get(\"/api/urls/{code}/analytics\", saved.code()))\n+                .andExpect(status().isOk())\n+                .andExpect(jsonPath(\"$.code\").value(saved.code()))\n+                .andExpect(jsonPath(\"$.url\").value(saved.url()))\n+                .andExpect(jsonPath(\"$.createdAt\").value(\"2026-01-01T00:00:00Z\"))\n+                .andExpect(jsonPath(\"$.clickCount\").value(0))\n+                .andExpect(jsonPath(\"$.lastAccessedAt\").value(nullValue()));\n+        verify(service).analytics(saved.code());\n+        verifyNoMoreInteractions(service);\n+    }\n+\n+    @Test\n+    void analyticsIncludesRecordedAccessTime() throws Exception {\n+        when(service.analytics(saved.code())).thenReturn(new UrlRepository.StoredUrl(\n+                saved.code(), saved.url(), saved.createdAt(), 12, Instant.parse(\"2026-01-02T00:00:00Z\")));\n+        mvc.perform(get(\"/api/urls/{code}/analytics\", saved.code()))\n+                .andExpect(status().isOk()).andExpect(jsonPath(\"$.clickCount\").value(12))\n+                .andExpect(jsonPath(\"$.lastAccessedAt\").value(\"2026-01-02T00:00:00Z\"));\n+    }\n+\n+    @Test\n+    void mapsUnknownCodesTo404() throws Exception {\n+        when(service.redirect(\"missing\")).thenThrow(new UrlService.UnknownCode());\n+        when(service.analytics(\"missing\")).thenThrow(new UrlService.UnknownCode());\n+        mvc.perform(get(\"/r/missing\")).andExpect(status().isNotFound());\n+        mvc.perform(get(\"/api/urls/missing/analytics\")).andExpect(status().isNotFound());\n+    }\n+\n+    @Test\n+    void mapsExhaustionTo503AndHidesInternalDetails() throws Exception {\n+        when(service.create(saved.url())).thenThrow(new UrlService.AllocationExhausted());\n+        mvc.perform(post(\"/api/urls\").contentType(MediaType.APPLICATION_JSON).content(body()))\n+                .andExpect(status().isServiceUnavailable());\n+        when(service.analytics(\"broken\")).thenThrow(new IllegalStateException(\"private SQL diagnostics\"));\n+        mvc.perform(get(\"/api/urls/broken/analytics\"))\n+                .andExpect(status().isInternalServerError())\n+                .andExpect(content().json(\"{\\\"error\\\":\\\"Internal server error\\\"}\"));\n+    }\n+}\ndiff --git a/backend/src/test/java/com/urlshortner/urls/UrlServiceTest.java b/backend/src/test/java/com/urlshortner/urls/UrlServiceTest.java\nnew file mode 100644\nindex 0000000..3089aa4\n--- /dev/null\n+++ b/backend/src/test/java/com/urlshortner/urls/UrlServiceTest.java\n@@ -0,0 +1,120 @@\n+package com.urlshortner.urls;\n+\n+import java.sql.SQLException;\n+import java.time.Instant;\n+import java.util.Optional;\n+import org.junit.jupiter.api.BeforeEach;\n+import org.junit.jupiter.api.Test;\n+import org.springframework.dao.DataAccessResourceFailureException;\n+import org.springframework.dao.DuplicateKeyException;\n+import static org.junit.jupiter.api.Assertions.*;\n+import static org.mockito.Mockito.*;\n+\n+class UrlServiceTest {\n+    private final UrlRepository repository = mock(UrlRepository.class);\n+    private final CodeGenerator codes = mock(CodeGenerator.class);\n+    private final UrlService service = new UrlService(repository, codes);\n+    private final UrlRepository.StoredUrl saved = new UrlRepository.StoredUrl(\n+            \"Ab12Cd34\", \"https://example.com/a\", Instant.parse(\"2026-01-01T00:00:00Z\"), 0, null);\n+\n+    @BeforeEach\n+    void setUp() {\n+        when(codes.next()).thenReturn(saved.code());\n+    }\n+\n+    private DuplicateKeyException conflict(String constraint, String state) throws Exception {\n+        // Construct actual runtime-driver metadata without a compile-time driver dependency.\n+        Class<?> detailType = Class.forName(\"org.postgresql.util.ServerErrorMessage\");\n+        String fields = \"SERROR\\0C\" + state + \"\\0Mduplicate\\0surl_service\\0turls\\0n\" + constraint + \"\\0\\0\";\n+        Object detail = detailType.getConstructor(String.class).newInstance(fields);\n+        SQLException sql = (SQLException) Class.forName(\"org.postgresql.util.PSQLException\")\n+                .getConstructor(detailType).newInstance(detail);\n+        return new DuplicateKeyException(\"collision\", sql);\n+    }\n+\n+    @Test\n+    void preservesStoredCreationValues() {\n+        when(repository.insert(saved.code(), saved.url())).thenReturn(saved);\n+        assertSame(saved, service.create(saved.url()));\n+        verify(repository).insert(saved.code(), saved.url());\n+    }\n+\n+    @Test\n+    void recoversFromOneCollision() throws Exception {\n+        when(codes.next()).thenReturn(\"00000000\", saved.code());\n+        when(repository.insert(\"00000000\", saved.url())).thenThrow(conflict(\"pk_urls_code\", \"23505\"));\n+        when(repository.insert(saved.code(), saved.url())).thenReturn(saved);\n+        assertSame(saved, service.create(saved.url()));\n+        verify(codes, times(2)).next();\n+    }\n+\n+    @Test\n+    void succeedsOnFifthAttempt() throws Exception {\n+        DuplicateKeyException collision = conflict(\"pk_urls_code\", \"23505\");\n+        when(repository.insert(saved.code(), saved.url()))\n+                .thenThrow(collision).thenThrow(collision).thenThrow(collision).thenThrow(collision).thenReturn(saved);\n+        assertSame(saved, service.create(saved.url()));\n+        verify(repository, times(5)).insert(saved.code(), saved.url());\n+    }\n+\n+    @Test\n+    void stopsAfterFiveCollisions() throws Exception {\n+        when(repository.insert(saved.code(), saved.url())).thenThrow(conflict(\"pk_urls_code\", \"23505\"));\n+        assertThrows(UrlService.AllocationExhausted.class, () -> service.create(saved.url()));\n+        verify(repository, times(5)).insert(saved.code(), saved.url());\n+        verify(codes, times(5)).next();\n+    }\n+\n+    @Test\n+    void doesNotRetryOtherConstraintsOrStates() throws Exception {\n+        for (DuplicateKeyException failure : new DuplicateKeyException[] {\n+                conflict(\"other_constraint\", \"23505\"), conflict(\"pk_urls_code\", \"23503\"),\n+                new DuplicateKeyException(\"pk_urls_code\", new SQLException(\"pk_urls_code\", \"23505\"))\n+        }) {\n+            reset(repository);\n+            when(repository.insert(saved.code(), saved.url())).thenThrow(failure);\n+            assertSame(failure, assertThrows(DuplicateKeyException.class, () -> service.create(saved.url())));\n+            verify(repository).insert(saved.code(), saved.url());\n+        }\n+    }\n+\n+    @Test\n+    void propagatesDatabaseFailuresImmediately() {\n+        var failure = new DataAccessResourceFailureException(\"unavailable\");\n+        when(repository.insert(saved.code(), saved.url())).thenThrow(failure);\n+        assertSame(failure, assertThrows(DataAccessResourceFailureException.class, () -> service.create(saved.url())));\n+        verify(repository).insert(saved.code(), saved.url());\n+    }\n+\n+    @Test\n+    void invalidDestinationDoesNotReachPersistence() {\n+        assertThrows(IllegalArgumentException.class, () -> service.create(\"ftp://example.com\"));\n+        verifyNoInteractions(repository, codes);\n+    }\n+\n+    @Test\n+    void redirectAccountsExactlyOnceAndAnalyticsOnlyReads() {\n+        when(repository.recordRedirect(saved.code())).thenReturn(Optional.of(saved.url()));\n+        when(repository.find(saved.code())).thenReturn(Optional.of(saved));\n+        assertEquals(saved.url(), service.redirect(saved.code()));\n+        verify(repository).recordRedirect(saved.code());\n+        clearInvocations(repository);\n+        assertSame(saved, service.analytics(saved.code()));\n+        verify(repository).find(saved.code());\n+        verify(repository, never()).recordRedirect(anyString());\n+    }\n+\n+    @Test\n+    void unknownCodesAreExplicitlyAbsent() {\n+        when(repository.recordRedirect(\"missing\")).thenReturn(Optional.empty());\n+        when(repository.find(\"missing\")).thenReturn(Optional.empty());\n+        assertThrows(UrlService.UnknownCode.class, () -> service.redirect(\"missing\"));\n+        assertThrows(UrlService.UnknownCode.class, () -> service.analytics(\"missing\"));\n+    }\n+\n+    @Test\n+    void generatedCodesHaveRequiredAlphabetAndLength() {\n+        CodeGenerator generator = new CodeGenerator();\n+        for (int i = 0; i < 100; i++) assertTrue(generator.next().matches(\"[0-9A-Za-z]{8}\"));\n+    }\n+}",
+        "limitations": [
+          "Local single-user prototype",
+          "Optional API adapters are not live-verified without opt-in credentials",
+          "Local hash chains detect changes but are not an independently trusted audit archive"
+        ],
+        "model_calls": 13,
+        "recovery_seconds": 1090.969993,
+        "repair_cycles": 2,
+        "requirement": "Build a Java URL shortener with POST /api/urls accepting {url}, GET /r/{code} returning a 302 redirect, and GET /api/urls/{code}/analytics returning code, url, createdAt, clickCount, lastAccessedAt. Return code and shortUrl from creation with status 201. Persist in PostgreSQL using JdbcTemplate and a Flyway migration. Validate HTTP/HTTPS destinations without fetching them, reject credentials/control characters, use cryptographically random base62 codes with bounded unique-conflict retries, and count concurrent redirects atomically. Add JUnit tests. No expiration or rate limiting in this baseline.",
+        "retries": 0,
+        "revision": 1,
+        "rollbacks": 1,
+        "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+        "scenario": "greenfield",
+        "source_sha": "2b8313ea0bee486ad154150b944f051126719516",
+        "validation": {
+          "acceptance": {
+            "cases": [
+              {
+                "details": "201",
+                "name": "create returns 201",
+                "passed": true
+              },
+              {
+                "details": "",
+                "name": "creation includes short URL and random code",
+                "passed": true
+              },
+              {
+                "details": "302",
+                "name": "302 redirect preserves destination",
+                "passed": true
+              },
+              {
+                "details": "26",
+                "name": "concurrent clicks are not lost",
+                "passed": true
+              },
+              {
+                "details": "",
+                "name": "analytics includes timestamps",
+                "passed": true
+              },
+              {
+                "details": "404",
+                "name": "unknown link returns 404",
+                "passed": true
+              },
+              {
+                "details": "400",
+                "name": "invalid scheme rejected",
+                "passed": true
+              },
+              {
+                "details": "400",
+                "name": "embedded credentials rejected",
+                "passed": true
+              },
+              {
+                "details": "400",
+                "name": "control characters rejected",
+                "passed": true
+              },
+              {
+                "details": "400",
+                "name": "missing host rejected",
+                "passed": true
+              }
+            ],
+            "passed": true
+          },
+          "at": "2026-10-14T12:55:04.611481+00:00",
+          "duration_seconds": 80.891,
+          "exit_code": 0,
+          "fingerprint": "51efd56d6c989653c8b9813de72d68d62228014cdbb1e00d037c54f1c16fff70",
+          "jar_sha256": "5b8086d2f26a6a009cf5c7f75076ec0a631a1932c05acc57b78c3b97f2fc4202",
+          "log": "To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.\nDaemon will be stopped at the end of the build \n> Task :clean UP-TO-DATE\n> Task :compileJava\n> Task :processResources\n> Task :classes\n> Task :resolveMainClassName\n> Task :bootJar\n> Task :compileTestJava\n> Task :processTestResources NO-SOURCE\n> Task :testClasses\nOpenJDK 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended\n> Task :test\n\nBUILD SUCCESSFUL in 31s\n7 actionable tasks: 6 executed, 1 up-to-date\n",
+          "output_directory": "runs/fcc92f3051df4ef19b8dfc875295e94e/output/5faeee573c34462bba80681a6cad5e5e",
+          "passed": true,
+          "revision": 1,
+          "source_sha": "2b8313ea0bee486ad154150b944f051126719516",
+          "unit": {
+            "failed_cases": [],
+            "passed": true,
+            "suites": [
+              {
+                "errors": "0",
+                "failures": "0",
+                "name": "com.urlshortner.urls.DestinationTest",
+                "skipped": "0",
+                "tests": "28"
+              },
+              {
+                "errors": "0",
+                "failures": "0",
+                "name": "com.urlshortner.urls.UrlControllerTest",
+                "skipped": "0",
+                "tests": "27"
+              },
+              {
+                "errors": "0",
+                "failures": "0",
+                "name": "com.urlshortner.urls.UrlServiceTest",
+                "skipped": "0",
+                "tests": "10"
+              }
+            ],
+            "tests": 65
+          }
+        }
+      },
+      "test_design": {
+        "output": {
+          "decisions": [
+            "Use existing JUnit 5, Spring test and Mockito dependencies without manifest changes.",
+            "Separate unit and MVC tests using test doubles from trusted-runner checks against real PostgreSQL.",
+            "Do not use H2 as evidence of PostgreSQL migration or UPDATE ... RETURNING compatibility.",
+            "Exclude expiration, expiry-equality and rate-limit cases because these features do not apply to the baseline.",
+            "Preserve existing migrations and protected acceptance checks; this stage specifies tests without writing files."
+          ],
+          "files": [],
+          "questions": [],
+          "risks": [
+            "No implementation or trusted-runner logs were supplied, so testability and execution outcomes remain unverified.",
+            "The repository excerpt shows no migrations, but complete migration history must be checked before introducing V1.",
+            "Real PostgreSQL checks require an isolated database provided by the trusted runner; H2 cannot establish PostgreSQL compatibility.",
+            "Public shortUrl correctness behind proxies depends on existing trusted-proxy configuration."
+          ],
+          "summary": "Design JUnit 5 coverage and real PostgreSQL HTTP acceptance for validation, bounded allocation retries, persistence and concurrent redirect accounting. No tests were executed.",
+          "tasks": [
+            {
+              "acceptance": [
+                "Parameterized JUnit cases accept HTTP and HTTPS URLs with valid hosts, including ports, paths, queries and fragments; preserve the destination exactly.",
+                "Reject blank or missing url, null, malformed JSON, incompatible field types, relative URLs, missing hosts and unsupported schemes with HTTP 400.",
+                "Reject credential-bearing destinations, including user:password@host and user@host.",
+                "Reject raw control characters, including JSON-escaped CR, LF, NUL and TAB decoded into the destination.",
+                "Test malformed authority, invalid ports and invalid URI escapes against the documented validation policy.",
+                "Invalid requests do not invoke persistence; validation performs no destination network requests."
+              ],
+              "dependencies": [],
+              "id": "validation",
+              "title": "Test destination validation and malformed creation requests"
+            },
+            {
+              "acceptance": [
+                "Generated codes contain exactly eight characters from 0-9, A-Z and a-z; source review confirms SecureRandom rather than a statistical claim of cryptographic security.",
+                "A deterministic generator or random source allows collision scenarios without probabilistic assertions.",
+                "A named code uniqueness conflict followed by a successful insert returns the successful code and performs exactly two attempts.",
+                "Four code conflicts followed by success use exactly five attempts.",
+                "Five code conflicts stop allocation, return HTTP 503 and perform no sixth attempt.",
+                "Other unique-constraint violations and unrelated database failures propagate immediately without retries."
+              ],
+              "dependencies": [
+                "validation"
+              ],
+              "id": "allocation",
+              "title": "Test random code generation and precise collision handling"
+            },
+            {
+              "acceptance": [
+                "MVC creation tests assert HTTP 201 and code, shortUrl, url and parseable createdAt matching the persisted record.",
+                "shortUrl uses the request origin and /r/{code}; unconfigured forwarded headers do not override that origin.",
+                "Redirect tests assert HTTP 302 and the exact stored destination in Location, with precisely one repository accounting call.",
+                "Analytics tests assert code, url, createdAt, clickCount and lastAccessedAt; initial values are zero and null.",
+                "Analytics invokes read-only lookup and never redirect accounting.",
+                "Unknown redirect and analytics codes return HTTP 404."
+              ],
+              "dependencies": [
+                "allocation"
+              ],
+              "id": "http_contract",
+              "title": "Test creation, redirect and analytics contracts"
+            },
+            {
+              "acceptance": [
+                "The trusted runner uses an isolated database with existing runner capabilities and no new dependencies.",
+                "On a fresh database, Flyway applies the new V1 migration, creates url_service and the schema-qualified table, and records successful migration history.",
+                "Verify code uniqueness, persisted timestamps, zero click-count default, nullable last-access timestamp and rejection of negative click counts.",
+                "Restart or rerun Flyway and confirm unchanged migrations validate successfully and stored data survives.",
+                "If supplied repository state contains an existing V1, require a new migration version and verify all existing migration contents remain unchanged.",
+                "Repository redirect accounting uses PostgreSQL UPDATE ... RETURNING; absent codes change no rows.",
+                "Confirm database conflict classification using actual constraint metadata, rather than relying only on mocked exceptions."
+              ],
+              "dependencies": [
+                "http_contract"
+              ],
+              "id": "postgresql",
+              "title": "Verify migration and repository semantics against PostgreSQL"
+            },
+            {
+              "acceptance": [
+                "Create a destination through POST /api/urls, verify HTTP 201 and response fields, then retrieve analytics showing zero clicks and null lastAccessedAt.",
+                "Disable automatic redirect following so the runner can assert HTTP 302 and Location without fetching the destination.",
+                "Issue 100 concurrent requests to the newly created redirect; require every response to be HTTP 302 with the expected Location.",
+                "After all requests finish, analytics reports exactly 100 clicks and a non-null lastAccessedAt no earlier than createdAt.",
+                "Repeated analytics reads leave clickCount and lastAccessedAt unchanged.",
+                "Unknown-code redirect and analytics requests return HTTP 404 and create no database records.",
+                "Malformed destination requests return HTTP 400 and create no records.",
+                "Restart the service and confirm the created URL and accumulated analytics persist."
+              ],
+              "dependencies": [
+                "postgresql"
+              ],
+              "id": "black_box",
+              "title": "Run independent HTTP acceptance and concurrent counting"
+            },
+            {
+              "acceptance": [
+                "The trusted runner executes Python tests, frontend typecheck/build, Java tests and independent HTTP acceptance checks, or documents each omitted check and its reason.",
+                "Report automated test results separately from real PostgreSQL and live HTTP runs.",
+                "Record concurrency request totals, response failures and final persisted count; do not infer success from unit tests.",
+                "Only trusted-runner output supplies execution outcomes; no successful results are asserted by this test design."
+              ],
+              "dependencies": [
+                "black_box"
+              ],
+              "id": "runner_report",
+              "title": "Collect required verification evidence"
+            }
+          ],
+          "verdict": "pass"
+        },
+        "revision": 1,
+        "source_sha": "39e155fce4b80db24bb5235c841295fb96acd764"
+      },
+      "tests": {
+        "acceptance": {
+          "cases": [
+            {
+              "details": "201",
+              "name": "create returns 201",
+              "passed": true
+            },
+            {
+              "details": "",
+              "name": "creation includes short URL and random code",
+              "passed": true
+            },
+            {
+              "details": "302",
+              "name": "302 redirect preserves destination",
+              "passed": true
+            },
+            {
+              "details": "26",
+              "name": "concurrent clicks are not lost",
+              "passed": true
+            },
+            {
+              "details": "",
+              "name": "analytics includes timestamps",
+              "passed": true
+            },
+            {
+              "details": "404",
+              "name": "unknown link returns 404",
+              "passed": true
+            },
+            {
+              "details": "400",
+              "name": "invalid scheme rejected",
+              "passed": true
+            },
+            {
+              "details": "400",
+              "name": "embedded credentials rejected",
+              "passed": true
+            },
+            {
+              "details": "400",
+              "name": "control characters rejected",
+              "passed": true
+            },
+            {
+              "details": "400",
+              "name": "missing host rejected",
+              "passed": true
+            }
+          ],
+          "passed": true
+        },
+        "at": "2026-10-14T12:55:04.611481+00:00",
+        "duration_seconds": 80.891,
+        "exit_code": 0,
+        "fingerprint": "51efd56d6c989653c8b9813de72d68d62228014cdbb1e00d037c54f1c16fff70",
+        "jar_sha256": "5b8086d2f26a6a009cf5c7f75076ec0a631a1932c05acc57b78c3b97f2fc4202",
+        "log": "To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.\nDaemon will be stopped at the end of the build \n> Task :clean UP-TO-DATE\n> Task :compileJava\n> Task :processResources\n> Task :classes\n> Task :resolveMainClassName\n> Task :bootJar\n> Task :compileTestJava\n> Task :processTestResources NO-SOURCE\n> Task :testClasses\nOpenJDK 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended\n> Task :test\n\nBUILD SUCCESSFUL in 31s\n7 actionable tasks: 6 executed, 1 up-to-date\n",
+        "output_directory": "runs/fcc92f3051df4ef19b8dfc875295e94e/output/5faeee573c34462bba80681a6cad5e5e",
+        "passed": true,
+        "revision": 1,
+        "source_sha": "2b8313ea0bee486ad154150b944f051126719516",
+        "unit": {
+          "failed_cases": [],
+          "passed": true,
+          "suites": [
+            {
+              "errors": "0",
+              "failures": "0",
+              "name": "com.urlshortner.urls.DestinationTest",
+              "skipped": "0",
+              "tests": "28"
+            },
+            {
+              "errors": "0",
+              "failures": "0",
+              "name": "com.urlshortner.urls.UrlControllerTest",
+              "skipped": "0",
+              "tests": "27"
+            },
+            {
+              "errors": "0",
+              "failures": "0",
+              "name": "com.urlshortner.urls.UrlServiceTest",
+              "skipped": "0",
+              "tests": "10"
+            }
+          ],
+          "tests": 65
+        }
+      }
+    },
+    "base_sha": "39e155fce4b80db24bb5235c841295fb96acd764",
+    "completed_at": "2026-10-14T13:02:15.835835+00:00",
+    "config": {
+      "limits": {
+        "active_minutes": 30,
+        "call_timeout_seconds": 240,
+        "max_model_calls": 24,
+        "max_repair_cycles": 2
+      },
+      "model": "",
+      "provider": "codex"
+    },
+    "created_at": "2026-10-14T12:31:17.014145+00:00",
+    "failure_started_at": "2026-10-14T12:36:53.765496+00:00",
+    "fault_injected": false,
+    "id": "fcc92f3051df4ef19b8dfc875295e94e",
+    "inject_fault": false,
+    "last_validated_sha": "2b8313ea0bee486ad154150b944f051126719516",
+    "max_expiry_days": 30,
+    "model_calls": 13,
+    "nodes": {
+      "architecture": {
+        "finished_at": "2026-10-14T12:33:29.801662+00:00",
+        "revision": 1,
+        "started_at": "2026-10-14T12:32:40.964182+00:00",
+        "status": "passed"
+      },
+      "change_approval": {
+        "finished_at": "2026-10-14T12:33:34.218821+00:00",
+        "revision": 1,
+        "started_at": "2026-10-14T12:33:34.187600+00:00",
+        "status": "passed"
+      },
+      "clarification": {
+        "status": "pending"
+      },
+      "documentation": {
+        "finished_at": "2026-10-14T12:54:17.257549+00:00",
+        "revision": 1,
+        "started_at": "2026-10-14T12:53:42.237445+00:00",
+        "status": "passed"
+      },
+      "implementation": {
+        "finished_at": "2026-10-14T12:53:42.161016+00:00",
+        "revision": 1,
+        "started_at": "2026-10-14T12:52:03.225714+00:00",
+        "status": "passed"
+      },
+      "plan": {
+        "finished_at": "2026-10-14T12:32:40.582897+00:00",
+        "revision": 1,
+        "started_at": "2026-10-14T12:31:50.872131+00:00",
+        "status": "passed"
+      },
+      "promotion": {
+        "finished_at": "2026-10-14T13:02:15.595958+00:00",
+        "revision": 1,
+        "started_at": "2026-10-14T13:01:45.016200+00:00",
+        "status": "passed"
+      },
+      "release_approval": {
+        "finished_at": "2026-10-14T13:01:44.856327+00:00",
+        "revision": 1,
+        "started_at": "2026-10-14T13:01:44.833056+00:00",
+        "status": "passed"
+      },
+      "requirements": {
+        "finished_at": "2026-10-14T12:31:50.197214+00:00",
+        "revision": 1,
+        "started_at": "2026-10-14T12:31:17.825274+00:00",
+        "status": "passed"
+      },
+      "review": {
+        "finished_at": "2026-10-14T12:55:26.740710+00:00",
+        "revision": 1,
+        "started_at": "2026-10-14T12:55:05.021324+00:00",
+        "status": "passed"
+      },
+      "summary": {
+        "finished_at": "2026-10-14T13:02:15.806469+00:00",
+        "revision": 1,
+        "started_at": "2026-10-14T13:02:15.646630+00:00",
+        "status": "passed"
+      },
+      "test_design": {
+        "finished_at": "2026-10-14T12:33:34.125985+00:00",
+        "revision": 1,
+        "started_at": "2026-10-14T12:32:41.261572+00:00",
+        "status": "passed"
+      },
+      "tests": {
+        "finished_at": "2026-10-14T12:55:04.785463+00:00",
+        "revision": 1,
+        "started_at": "2026-10-14T12:53:42.420687+00:00",
+        "status": "passed"
+      }
+    },
+    "pending": null,
+    "platform_failure": false,
+    "recovery_seconds": 1090.969993,
+    "repair_cycles": 2,
+    "requirement": "Build a Java URL shortener with POST /api/urls accepting {url}, GET /r/{code} returning a 302 redirect, and GET /api/urls/{code}/analytics returning code, url, createdAt, clickCount, lastAccessedAt. Return code and shortUrl from creation with status 201. Persist in PostgreSQL using JdbcTemplate and a Flyway migration. Validate HTTP/HTTPS destinations without fetching them, reject credentials/control characters, use cryptographically random base62 codes with bounded unique-conflict retries, and count concurrent redirects atomically. Add JUnit tests. No expiration or rate limiting in this baseline.",
+    "retries": 0,
+    "retry_attempts": 1,
+    "revision": 1,
+    "rollbacks": 1,
+    "scenario": "greenfield",
+    "status": "succeeded",
+    "stop_reason": null,
+    "target_fingerprint": "absent",
+    "validation_history": [
+      {
+        "acceptance": null,
+        "at": "2026-10-14T12:36:53.749144+00:00",
+        "duration_seconds": 54.516,
+        "exit_code": 1,
+        "fingerprint": "13f694356c7a7b307727d937f713f09d6ff590efecefecedab40f4646ae03cb0",
+        "log": "To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.\nDaemon will be stopped at the end of the build \n> Task :clean UP-TO-DATE\n> Task :compileJava\n> Task :processResources\n> Task :classes\n> Task :resolveMainClassName\n> Task :bootJar\n> Task :compileTestJava\n> Task :processTestResources NO-SOURCE\n> Task :testClasses\nOpenJDK 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended\n\n> Task :test\n\nUrlControllerTest > initialAnalyticsHasZeroClicksAndNullAccessTime() FAILED\n    java.lang.AssertionError at UrlControllerTest.java:88\n\nUrlControllerTest > analyticsIncludesRecordedAccessTime() FAILED\n    java.lang.AssertionError at UrlControllerTest.java:101\n\nUrlControllerTest > creationUsesRequestOriginAndContextPath() FAILED\n    java.lang.AssertionError at UrlControllerTest.java:56\n\n58 tests completed, 3 failed\n\n> Task :test FAILED\n\nFAILURE: Build failed with an exception.\n\n* What went wrong:\nExecution failed for task ':test'.\n> There were failing tests. See the report at: file:///workspace/build/reports/tests/test/index.html\n\n* Try:\n> Run with --scan to get full insights.\n7 actionable tasks: 6 executed, 1 up-to-date\n\nBUILD FAILED in 36s\n",
+        "output_directory": "runs/fcc92f3051df4ef19b8dfc875295e94e/output/0e681b39ae774104a62e864c89458593",
+        "passed": false,
+        "revision": 1,
+        "source_sha": "e27896d26e53c4dc35a393fc95b2330d65725689",
+        "unit": {
+          "passed": false,
+          "suites": [
+            {
+              "errors": "0",
+              "failures": "0",
+              "name": "com.urlshortner.urls.DestinationTest",
+              "skipped": "0",
+              "tests": "28"
+            },
+            {
+              "errors": "0",
+              "failures": "3",
+              "name": "com.urlshortner.urls.UrlControllerTest",
+              "skipped": "0",
+              "tests": "20"
+            },
+            {
+              "errors": "0",
+              "failures": "0",
+              "name": "com.urlshortner.urls.UrlServiceTest",
+              "skipped": "0",
+              "tests": "10"
+            }
+          ],
+          "tests": 58
+        }
+      },
+      {
+        "acceptance": {
+          "cases": [
+            {
+              "details": "201",
+              "name": "create returns 201",
+              "passed": true
+            },
+            {
+              "details": "",
+              "name": "creation includes short URL and random code",
+              "passed": true
+            },
+            {
+              "details": "302",
+              "name": "302 redirect preserves destination",
+              "passed": true
+            },
+            {
+              "details": "26",
+              "name": "concurrent clicks are not lost",
+              "passed": true
+            },
+            {
+              "details": "",
+              "name": "analytics includes timestamps",
+              "passed": true
+            },
+            {
+              "details": "404",
+              "name": "unknown link returns 404",
+              "passed": true
+            },
+            {
+              "details": "400",
+              "name": "invalid scheme rejected",
+              "passed": true
+            },
+            {
+              "details": "400",
+              "name": "embedded credentials rejected",
+              "passed": true
+            },
+            {
+              "details": "400",
+              "name": "control characters rejected",
+              "passed": true
+            },
+            {
+              "details": "400",
+              "name": "missing host rejected",
+              "passed": true
+            }
+          ],
+          "passed": true
+        },
+        "at": "2026-10-14T12:51:39.485294+00:00",
+        "duration_seconds": 107.75,
+        "exit_code": 0,
+        "fingerprint": "81443107dbaf7f1007d86043aee6e9ff8df2c52efe4ced992ccfcc01d6e291b0",
+        "jar_sha256": "a7b5f71c77095a6e866bbe583742da6f305eac99659e62227a1f079e1c44a8bf",
+        "log": "To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.\nDaemon will be stopped at the end of the build \n> Task :clean UP-TO-DATE\n> Task :compileJava\n> Task :processResources\n> Task :classes\n> Task :resolveMainClassName\n> Task :bootJar\n> Task :compileTestJava\n> Task :processTestResources NO-SOURCE\n> Task :testClasses\nOpenJDK 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended\n> Task :test\n\nBUILD SUCCESSFUL in 45s\n7 actionable tasks: 6 executed, 1 up-to-date\n",
+        "output_directory": "runs/fcc92f3051df4ef19b8dfc875295e94e/output/7413755905104d8d81d8fef4e35df9b4",
+        "passed": true,
+        "revision": 1,
+        "source_sha": "eb14f2c9a4461e52b096a1193154ee33e14071b0",
+        "unit": {
+          "failed_cases": [],
+          "passed": true,
+          "suites": [
+            {
+              "errors": "0",
+              "failures": "0",
+              "name": "com.urlshortner.urls.DestinationTest",
+              "skipped": "0",
+              "tests": "28"
+            },
+            {
+              "errors": "0",
+              "failures": "0",
+              "name": "com.urlshortner.urls.UrlControllerTest",
+              "skipped": "0",
+              "tests": "20"
+            },
+            {
+              "errors": "0",
+              "failures": "0",
+              "name": "com.urlshortner.urls.UrlServiceTest",
+              "skipped": "0",
+              "tests": "10"
+            }
+          ],
+          "tests": 58
+        }
+      },
+      {
+        "acceptance": {
+          "cases": [
+            {
+              "details": "201",
+              "name": "create returns 201",
+              "passed": true
+            },
+            {
+              "details": "",
+              "name": "creation includes short URL and random code",
+              "passed": true
+            },
+            {
+              "details": "302",
+              "name": "302 redirect preserves destination",
+              "passed": true
+            },
+            {
+              "details": "26",
+              "name": "concurrent clicks are not lost",
+              "passed": true
+            },
+            {
+              "details": "",
+              "name": "analytics includes timestamps",
+              "passed": true
+            },
+            {
+              "details": "404",
+              "name": "unknown link returns 404",
+              "passed": true
+            },
+            {
+              "details": "400",
+              "name": "invalid scheme rejected",
+              "passed": true
+            },
+            {
+              "details": "400",
+              "name": "embedded credentials rejected",
+              "passed": true
+            },
+            {
+              "details": "400",
+              "name": "control characters rejected",
+              "passed": true
+            },
+            {
+              "details": "400",
+              "name": "missing host rejected",
+              "passed": true
+            }
+          ],
+          "passed": true
+        },
+        "at": "2026-10-14T12:55:04.611481+00:00",
+        "duration_seconds": 80.891,
+        "exit_code": 0,
+        "fingerprint": "51efd56d6c989653c8b9813de72d68d62228014cdbb1e00d037c54f1c16fff70",
+        "jar_sha256": "5b8086d2f26a6a009cf5c7f75076ec0a631a1932c05acc57b78c3b97f2fc4202",
+        "log": "To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.\nDaemon will be stopped at the end of the build \n> Task :clean UP-TO-DATE\n> Task :compileJava\n> Task :processResources\n> Task :classes\n> Task :resolveMainClassName\n> Task :bootJar\n> Task :compileTestJava\n> Task :processTestResources NO-SOURCE\n> Task :testClasses\nOpenJDK 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended\n> Task :test\n\nBUILD SUCCESSFUL in 31s\n7 actionable tasks: 6 executed, 1 up-to-date\n",
+        "output_directory": "runs/fcc92f3051df4ef19b8dfc875295e94e/output/5faeee573c34462bba80681a6cad5e5e",
+        "passed": true,
+        "revision": 1,
+        "source_sha": "2b8313ea0bee486ad154150b944f051126719516",
+        "unit": {
+          "failed_cases": [],
+          "passed": true,
+          "suites": [
+            {
+              "errors": "0",
+              "failures": "0",
+              "name": "com.urlshortner.urls.DestinationTest",
+              "skipped": "0",
+              "tests": "28"
+            },
+            {
+              "errors": "0",
+              "failures": "0",
+              "name": "com.urlshortner.urls.UrlControllerTest",
+              "skipped": "0",
+              "tests": "27"
+            },
+            {
+              "errors": "0",
+              "failures": "0",
+              "name": "com.urlshortner.urls.UrlServiceTest",
+              "skipped": "0",
+              "tests": "10"
+            }
+          ],
+          "tests": 65
+        }
+      }
+    ],
+    "diff": "diff --git a/backend/docs/url-service.md b/backend/docs/url-service.md\nnew file mode 100644\nindex 0000000..11c80ac\n--- /dev/null\n+++ b/backend/docs/url-service.md\n@@ -0,0 +1,36 @@\n+# URL service baseline\n+\n+POST /api/urls accepts a JSON object with a string `url`. Successful creation returns 201 with `code`, `shortUrl`, `url`, `createdAt` and a Location header pointing to the short URL. The accepted destination is preserved exactly.\n+\n+Public short URLs use the configured `shortener.public-base-url`, followed by `/r/{code}`. A configured path prefix is retained and trailing slashes are removed before appending the redirect path. Client Host, servlet origin, request context path and forwarded headers do not determine the public URL. The configured base must be an HTTP/HTTPS URL without credentials, control characters, query or fragment; invalid configuration fails application startup. The existing application.yml supplies the property and its environment override.\n+\n+GET /r/{code} returns 302 with the destination in Location. One schema-qualified PostgreSQL UPDATE increments click_count, sets last_accessed_at and returns the destination. Clients and acceptance checks must disable redirect following to avoid fetching destinations.\n+\n+GET /api/urls/{code}/analytics returns `code`, `url`, `createdAt`, `clickCount`, `lastAccessedAt`. Initial values are zero and null. Reads do not account for clicks. Timestamps are UTC instants. Unknown codes return 404; invalid creation bodies return 400; five code collisions return 503. Unexpected errors return a generic 500 response.\n+\n+Validation uses java.net.URI without destination requests or DNS lookups. It requires HTTP or HTTPS, a valid server host and a port in 0..65535 when supplied. Relative URLs, credentials, malformed authority, empty explicit ports, malformed escapes, raw ISO control characters and percent-encoded ISO control characters are rejected. Non-string URL values are rejected. Destinations are never trimmed or rewritten.\n+\n+Codes contain eight independently selected SecureRandom base62 characters. At most five inserts are attempted without a surrounding transaction. Only SQLSTATE 23505 with structured metadata identifying url_service.urls.pk_urls_code is retried; other failures propagate. Driver diagnostics are accessed reflectively because PostgreSQL is a runtime-only dependency. Error messages are never parsed to infer collisions.\n+\n+The existing V1 migration creates url_service and url_service.urls and remains unchanged. All service queries are schema-qualified. There is no expiration or rate limiting in this baseline; existing related configuration values do not activate those features.\n+\n+## Supplied verification evidence\n+\n+Automated tests: the supplied trusted-runner report for revision 1, source eb14f2c9a4461e52b096a1193154ee33e14071b0, reports a successful Java build and 58 passing JUnit tests with no failures. These results precede the configured-public-base correction. Revised MVC tests have not been executed here. Mock-based tests do not establish live PostgreSQL behavior.\n+\n+Live acceptance: the same report records passing independent HTTP cases for creation, redirect destination preservation, concurrent accounting, analytics timestamps, unknown links and invalid destinations. The concurrency case reports count 26. This does not establish the 100-redirect procedure below or verify this revision's configured public URL behavior.\n+\n+Python tests, frontend typecheck and frontend build results were not supplied. No checks were executed during this implementation stage.\n+\n+## Trusted-runner verification\n+\n+Use only the trusted Docker runner; never execute generated code on the host. Preserve runner configuration, dependencies and protected acceptance checks. Do not provision cloud services.\n+\n+Run Java tests using the existing Gradle launcher with `test` in backend. Run Python tests, frontend typecheck and frontend build using the existing runner and manifests. Record each omitted check and its reason. Re-run independent HTTP acceptance for this revision.\n+\n+1. Use an isolated PostgreSQL database. Confirm Flyway applies the unchanged V1 on a fresh database and inspect constraints and defaults. Verify negative click counts are rejected and real duplicate-code exceptions identify the expected schema, table and constraint.\n+2. Configure a public base URL reachable by the runner. POST a valid destination with conflicting Host and forwarded headers. Assert 201 and verify both shortUrl and Location use the configured base. Read analytics and assert zero clicks and null lastAccessedAt.\n+3. Disable redirect following and send 100 concurrent GET requests to the returned short URL. Require every response to be 302 with the exact stored Location. After completion, require clickCount 100 and non-null lastAccessedAt no earlier than createdAt.\n+4. Repeat analytics reads and verify count and lastAccessedAt remain unchanged. Request unknown redirect and analytics codes, assert 404 and verify no rows were created. Invalid creation requests must also create no rows.\n+5. Restart against the same database. Confirm Flyway validates unchanged migrations and the destination and analytics survive.\n+6. Report automated tests separately from live database and HTTP checks. Record request totals, response failures, final persisted count and all omitted checks. Only trusted-runner output establishes execution success.\ndiff --git a/backend/src/main/java/com/urlshortner/urls/CodeGenerator.java b/backend/src/main/java/com/urlshortner/urls/CodeGenerator.java\nnew file mode 100644\nindex 0000000..f6c47ec\n--- /dev/null\n+++ b/backend/src/main/java/com/urlshortner/urls/CodeGenerator.java\n@@ -0,0 +1,18 @@\n+package com.urlshortner.urls;\n+\n+import java.security.SecureRandom;\n+import org.springframework.stereotype.Component;\n+\n+@Component\n+public class CodeGenerator {\n+    private static final String ALPHABET = \"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz\";\n+    private final SecureRandom random = new SecureRandom();\n+\n+    public String next() {\n+        char[] code = new char[8];\n+        for (int i = 0; i < code.length; i++) {\n+            code[i] = ALPHABET.charAt(random.nextInt(ALPHABET.length()));\n+        }\n+        return new String(code);\n+    }\n+}\ndiff --git a/backend/src/main/java/com/urlshortner/urls/Destination.java b/backend/src/main/java/com/urlshortner/urls/Destination.java\nnew file mode 100644\nindex 0000000..2af69b7\n--- /dev/null\n+++ b/backend/src/main/java/com/urlshortner/urls/Destination.java\n@@ -0,0 +1,34 @@\n+package com.urlshortner.urls;\n+\n+import java.net.URI;\n+import java.net.URISyntaxException;\n+\n+final class Destination {\n+    private Destination() {}\n+\n+    static boolean valid(String value) {\n+        if (value == null || value.isBlank()) return false;\n+        for (int i = 0; i < value.length(); i++) {\n+            char c = value.charAt(i);\n+            if (Character.isISOControl(c)) return false;\n+            if (c == '%' && i + 2 < value.length()) {\n+                int high = Character.digit(value.charAt(i + 1), 16);\n+                int low = Character.digit(value.charAt(i + 2), 16);\n+                if (high >= 0 && low >= 0 && Character.isISOControl((char) (high * 16 + low))) {\n+                    return false;\n+                }\n+            }\n+        }\n+        try {\n+            URI uri = new URI(value).parseServerAuthority();\n+            String scheme = uri.getScheme();\n+            if (!(\"http\".equalsIgnoreCase(scheme) || \"https\".equalsIgnoreCase(scheme))) return false;\n+            if (uri.getHost() == null || uri.getHost().isBlank() || uri.getRawUserInfo() != null) return false;\n+            if (uri.getPort() < -1 || uri.getPort() > 65535) return false;\n+            // URI accepts an empty explicit port; reject it as malformed authority.\n+            return !uri.getRawAuthority().endsWith(\":\");\n+        } catch (URISyntaxException | IllegalArgumentException exception) {\n+            return false;\n+        }\n+    }\n+}\ndiff --git a/backend/src/main/java/com/urlshortner/urls/UrlController.java b/backend/src/main/java/com/urlshortner/urls/UrlController.java\nnew file mode 100644\nindex 0000000..ba03268\n--- /dev/null\n+++ b/backend/src/main/java/com/urlshortner/urls/UrlController.java\n@@ -0,0 +1,48 @@\n+package com.urlshortner.urls;\n+\n+import com.fasterxml.jackson.databind.JsonNode;\n+import jakarta.validation.Valid;\n+import java.net.URI;\n+import java.time.Instant;\n+import org.springframework.beans.factory.annotation.Value;\n+import org.springframework.http.ResponseEntity;\n+import org.springframework.web.bind.annotation.*;\n+\n+@RestController\n+public class UrlController {\n+    public record CreateRequest(@ValidDestination JsonNode url) {}\n+    public record Created(String code, String shortUrl, String url, Instant createdAt) {}\n+    public record Analytics(String code, String url, Instant createdAt, long clickCount, Instant lastAccessedAt) {}\n+\n+    private final UrlService service;\n+    private final String publicBaseUrl;\n+\n+    public UrlController(UrlService service,\n+            @Value(\"${shortener.public-base-url}\") String publicBaseUrl) {\n+        this.service = service;\n+        URI base = URI.create(publicBaseUrl);\n+        if (!Destination.valid(publicBaseUrl) || base.getRawQuery() != null || base.getRawFragment() != null) {\n+            throw new IllegalArgumentException(\"Invalid public base URL configuration\");\n+        }\n+        this.publicBaseUrl = publicBaseUrl.replaceAll(\"/+$\", \"\");\n+    }\n+\n+    @PostMapping(\"/api/urls\")\n+    public ResponseEntity<Created> create(@Valid @RequestBody CreateRequest body) {\n+        UrlRepository.StoredUrl saved = service.create(body.url().textValue());\n+        String shortUrl = publicBaseUrl + \"/r/\" + saved.code();\n+        return ResponseEntity.created(URI.create(shortUrl))\n+                .body(new Created(saved.code(), shortUrl, saved.url(), saved.createdAt()));\n+    }\n+\n+    @GetMapping(\"/r/{code}\")\n+    public ResponseEntity<Void> redirect(@PathVariable(\"code\") String code) {\n+        return ResponseEntity.status(302).location(URI.create(service.redirect(code))).build();\n+    }\n+\n+    @GetMapping(\"/api/urls/{code}/analytics\")\n+    public Analytics analytics(@PathVariable(\"code\") String code) {\n+        UrlRepository.StoredUrl saved = service.analytics(code);\n+        return new Analytics(saved.code(), saved.url(), saved.createdAt(), saved.clickCount(), saved.lastAccessedAt());\n+    }\n+}\ndiff --git a/backend/src/main/java/com/urlshortner/urls/UrlErrors.java b/backend/src/main/java/com/urlshortner/urls/UrlErrors.java\nnew file mode 100644\nindex 0000000..ba80940\n--- /dev/null\n+++ b/backend/src/main/java/com/urlshortner/urls/UrlErrors.java\n@@ -0,0 +1,32 @@\n+package com.urlshortner.urls;\n+\n+import org.springframework.http.ResponseEntity;\n+import org.springframework.http.converter.HttpMessageNotReadableException;\n+import org.springframework.web.bind.MethodArgumentNotValidException;\n+import org.springframework.web.bind.annotation.ExceptionHandler;\n+import org.springframework.web.bind.annotation.RestControllerAdvice;\n+\n+@RestControllerAdvice(assignableTypes = UrlController.class)\n+public class UrlErrors {\n+    public record ErrorBody(String error) {}\n+\n+    @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class, IllegalArgumentException.class})\n+    public ResponseEntity<ErrorBody> invalid(Exception exception) {\n+        return ResponseEntity.badRequest().body(new ErrorBody(\"Invalid creation request\"));\n+    }\n+\n+    @ExceptionHandler(UrlService.UnknownCode.class)\n+    public ResponseEntity<ErrorBody> missing() {\n+        return ResponseEntity.status(404).body(new ErrorBody(\"Unknown code\"));\n+    }\n+\n+    @ExceptionHandler(UrlService.AllocationExhausted.class)\n+    public ResponseEntity<ErrorBody> exhausted() {\n+        return ResponseEntity.status(503).body(new ErrorBody(\"Code allocation unavailable\"));\n+    }\n+\n+    @ExceptionHandler(Exception.class)\n+    public ResponseEntity<ErrorBody> internal(Exception exception) {\n+        return ResponseEntity.internalServerError().body(new ErrorBody(\"Internal server error\"));\n+    }\n+}\ndiff --git a/backend/src/main/java/com/urlshortner/urls/UrlRepository.java b/backend/src/main/java/com/urlshortner/urls/UrlRepository.java\nnew file mode 100644\nindex 0000000..a1a565f\n--- /dev/null\n+++ b/backend/src/main/java/com/urlshortner/urls/UrlRepository.java\n@@ -0,0 +1,85 @@\n+package com.urlshortner.urls;\n+\n+import java.lang.reflect.InvocationTargetException;\n+import java.sql.SQLException;\n+import java.time.Instant;\n+import java.time.OffsetDateTime;\n+import java.util.Collections;\n+import java.util.IdentityHashMap;\n+import java.util.Optional;\n+import java.util.Set;\n+import org.springframework.dao.DataAccessException;\n+import org.springframework.jdbc.core.JdbcTemplate;\n+import org.springframework.jdbc.core.RowMapper;\n+import org.springframework.stereotype.Repository;\n+\n+@Repository\n+public class UrlRepository {\n+    public record StoredUrl(String code, String url, Instant createdAt, long clickCount, Instant lastAccessedAt) {}\n+\n+    private static final RowMapper<StoredUrl> MAPPER = (rs, row) -> {\n+        OffsetDateTime lastAccessed = rs.getObject(\"last_accessed_at\", OffsetDateTime.class);\n+        return new StoredUrl(rs.getString(\"code\"), rs.getString(\"url\"),\n+                rs.getObject(\"created_at\", OffsetDateTime.class).toInstant(),\n+                rs.getLong(\"click_count\"), lastAccessed == null ? null : lastAccessed.toInstant());\n+    };\n+\n+    private final JdbcTemplate jdbc;\n+\n+    public UrlRepository(JdbcTemplate jdbc) {\n+        this.jdbc = jdbc;\n+    }\n+\n+    public StoredUrl insert(String code, String url) {\n+        return jdbc.queryForObject(\"\"\"\n+                INSERT INTO url_service.urls (code, url) VALUES (?, ?)\n+                RETURNING code, url, created_at, click_count, last_accessed_at\n+                \"\"\", MAPPER, code, url);\n+    }\n+\n+    public Optional<StoredUrl> find(String code) {\n+        return jdbc.query(\"\"\"\n+                SELECT code, url, created_at, click_count, last_accessed_at\n+                FROM url_service.urls WHERE code = ?\n+                \"\"\", MAPPER, code).stream().findFirst();\n+    }\n+\n+    public Optional<String> recordRedirect(String code) {\n+        return jdbc.query(\"\"\"\n+                UPDATE url_service.urls\n+                SET click_count = click_count + 1, last_accessed_at = clock_timestamp()\n+                WHERE code = ? RETURNING url\n+                \"\"\", (rs, row) -> rs.getString(\"url\"), code).stream().findFirst();\n+    }\n+\n+    static boolean isCodeConflict(DataAccessException failure) {\n+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());\n+        return isCodeConflict(failure, seen);\n+    }\n+\n+    private static boolean isCodeConflict(Throwable failure, Set<Throwable> seen) {\n+        if (failure == null || !seen.add(failure)) return false;\n+        if (failure instanceof SQLException sql) {\n+            if (\"23505\".equals(sql.getSQLState()) && namedCodeConstraint(sql)) return true;\n+            if (isCodeConflict(sql.getNextException(), seen)) return true;\n+        }\n+        return isCodeConflict(failure.getCause(), seen);\n+    }\n+\n+    private static boolean namedCodeConstraint(SQLException failure) {\n+        // The PostgreSQL driver is runtime-only. Read its structured diagnostics,\n+        // never localized message text, and fail closed for unknown drivers.\n+        if (!failure.getClass().getName().equals(\"org.postgresql.util.PSQLException\")) return false;\n+        try {\n+            Object detail = failure.getClass().getMethod(\"getServerErrorMessage\").invoke(failure);\n+            if (detail == null) return false;\n+            Object constraint = detail.getClass().getMethod(\"getConstraint\").invoke(detail);\n+            Object schema = detail.getClass().getMethod(\"getSchema\").invoke(detail);\n+            Object table = detail.getClass().getMethod(\"getTable\").invoke(detail);\n+            return \"pk_urls_code\".equals(constraint)\n+                    && \"url_service\".equals(schema) && \"urls\".equals(table);\n+        } catch (ReflectiveOperationException | SecurityException exception) {\n+            return false;\n+        }\n+    }\n+}\ndiff --git a/backend/src/main/java/com/urlshortner/urls/UrlService.java b/backend/src/main/java/com/urlshortner/urls/UrlService.java\nnew file mode 100644\nindex 0000000..89cc784\n--- /dev/null\n+++ b/backend/src/main/java/com/urlshortner/urls/UrlService.java\n@@ -0,0 +1,40 @@\n+package com.urlshortner.urls;\n+\n+import org.springframework.dao.DataAccessException;\n+import org.springframework.stereotype.Service;\n+\n+@Service\n+public class UrlService {\n+    public static final class UnknownCode extends RuntimeException {}\n+    public static final class AllocationExhausted extends RuntimeException {}\n+\n+    private final UrlRepository repository;\n+    private final CodeGenerator codes;\n+\n+    public UrlService(UrlRepository repository, CodeGenerator codes) {\n+        this.repository = repository;\n+        this.codes = codes;\n+    }\n+\n+    // Deliberately no surrounding transaction: PostgreSQL uniqueness failures\n+    // must not leave subsequent allocation attempts in an aborted transaction.\n+    public UrlRepository.StoredUrl create(String url) {\n+        if (!Destination.valid(url)) throw new IllegalArgumentException(\"Invalid destination\");\n+        for (int attempt = 0; attempt < 5; attempt++) {\n+            try {\n+                return repository.insert(codes.next(), url);\n+            } catch (DataAccessException exception) {\n+                if (!UrlRepository.isCodeConflict(exception)) throw exception;\n+            }\n+        }\n+        throw new AllocationExhausted();\n+    }\n+\n+    public String redirect(String code) {\n+        return repository.recordRedirect(code).orElseThrow(UnknownCode::new);\n+    }\n+\n+    public UrlRepository.StoredUrl analytics(String code) {\n+        return repository.find(code).orElseThrow(UnknownCode::new);\n+    }\n+}\ndiff --git a/backend/src/main/java/com/urlshortner/urls/ValidDestination.java b/backend/src/main/java/com/urlshortner/urls/ValidDestination.java\nnew file mode 100644\nindex 0000000..aa06e81\n--- /dev/null\n+++ b/backend/src/main/java/com/urlshortner/urls/ValidDestination.java\n@@ -0,0 +1,27 @@\n+package com.urlshortner.urls;\n+\n+import com.fasterxml.jackson.databind.JsonNode;\n+import jakarta.validation.Constraint;\n+import jakarta.validation.ConstraintValidator;\n+import jakarta.validation.ConstraintValidatorContext;\n+import jakarta.validation.Payload;\n+import java.lang.annotation.Retention;\n+import java.lang.annotation.Target;\n+import static java.lang.annotation.ElementType.*;\n+import static java.lang.annotation.RetentionPolicy.RUNTIME;\n+\n+@Target({FIELD, PARAMETER, RECORD_COMPONENT, ANNOTATION_TYPE})\n+@Retention(RUNTIME)\n+@Constraint(validatedBy = ValidDestination.Validator.class)\n+public @interface ValidDestination {\n+    String message() default \"url must be an HTTP or HTTPS destination without credentials or control characters\";\n+    Class<?>[] groups() default {};\n+    Class<? extends Payload>[] payload() default {};\n+\n+    class Validator implements ConstraintValidator<ValidDestination, JsonNode> {\n+        @Override\n+        public boolean isValid(JsonNode value, ConstraintValidatorContext context) {\n+            return value != null && value.isTextual() && Destination.valid(value.textValue());\n+        }\n+    }\n+}\ndiff --git a/backend/src/main/resources/db/migration/V1__create_url_service.sql b/backend/src/main/resources/db/migration/V1__create_url_service.sql\nnew file mode 100644\nindex 0000000..cdc1f7e\n--- /dev/null\n+++ b/backend/src/main/resources/db/migration/V1__create_url_service.sql\n@@ -0,0 +1,11 @@\n+CREATE SCHEMA IF NOT EXISTS url_service;\n+\n+CREATE TABLE url_service.urls (\n+    code VARCHAR(8) NOT NULL,\n+    url TEXT NOT NULL,\n+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,\n+    click_count BIGINT NOT NULL DEFAULT 0,\n+    last_accessed_at TIMESTAMPTZ,\n+    CONSTRAINT pk_urls_code PRIMARY KEY (code),\n+    CONSTRAINT ck_urls_click_count CHECK (click_count >= 0)\n+);\ndiff --git a/backend/src/test/java/com/urlshortner/urls/DestinationTest.java b/backend/src/test/java/com/urlshortner/urls/DestinationTest.java\nnew file mode 100644\nindex 0000000..f6ec337\n--- /dev/null\n+++ b/backend/src/test/java/com/urlshortner/urls/DestinationTest.java\n@@ -0,0 +1,32 @@\n+package com.urlshortner.urls;\n+\n+import org.junit.jupiter.params.ParameterizedTest;\n+import org.junit.jupiter.params.provider.NullAndEmptySource;\n+import org.junit.jupiter.params.provider.ValueSource;\n+import static org.junit.jupiter.api.Assertions.*;\n+\n+class DestinationTest {\n+    @ParameterizedTest\n+    @ValueSource(strings = {\n+            \"http://example.com\", \"https://example.com:8443/a?x=1#part\",\n+            \"HTTPS://example.com/path%20name\", \"http://localhost:8080/\", \"https://[::1]/\"\n+    })\n+    void acceptsHttpDestinations(String value) {\n+        assertTrue(Destination.valid(value));\n+    }\n+\n+    @ParameterizedTest\n+    @NullAndEmptySource\n+    @ValueSource(strings = {\n+            \" \", \"/relative\", \"ftp://example.com\", \"https:///path\", \"https://\",\n+            \"https://user@example.com\", \"https://user:password@example.com\",\n+            \"https://example.com/\\r\", \"https://example.com/\\n\", \"https://example.com/\\t\",\n+            \"https://example.com/\\u0000\", \"https://example.com/%0d\", \"https://example.com/%0A\",\n+            \"https://example.com/%7f\", \"https://example.com/%ZZ\", \"https://example.com:abc/\",\n+            \"https://example.com:65536/\", \"https://example.com:/\", \" https://example.com\",\n+            \"https://example.com\\\\@evil.example/\", \"https://bad host/\"\n+    })\n+    void rejectsInvalidDestinations(String value) {\n+        assertFalse(Destination.valid(value));\n+    }\n+}\ndiff --git a/backend/src/test/java/com/urlshortner/urls/UrlControllerTest.java b/backend/src/test/java/com/urlshortner/urls/UrlControllerTest.java\nnew file mode 100644\nindex 0000000..3a98dc4\n--- /dev/null\n+++ b/backend/src/test/java/com/urlshortner/urls/UrlControllerTest.java\n@@ -0,0 +1,158 @@\n+package com.urlshortner.urls;\n+\n+import com.fasterxml.jackson.databind.SerializationFeature;\n+import java.time.Instant;\n+import org.junit.jupiter.api.AfterEach;\n+import org.junit.jupiter.api.BeforeEach;\n+import org.junit.jupiter.api.Test;\n+import org.junit.jupiter.params.ParameterizedTest;\n+import org.junit.jupiter.params.provider.ValueSource;\n+import org.springframework.http.MediaType;\n+import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;\n+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;\n+import org.springframework.test.web.servlet.MockMvc;\n+import org.springframework.test.web.servlet.setup.MockMvcBuilders;\n+import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;\n+import static org.hamcrest.Matchers.nullValue;\n+import static org.junit.jupiter.api.Assertions.assertThrows;\n+import static org.mockito.Mockito.*;\n+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;\n+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;\n+\n+class UrlControllerTest {\n+    private final UrlService service = mock(UrlService.class);\n+    private final LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();\n+    private final UrlRepository.StoredUrl saved = new UrlRepository.StoredUrl(\n+            \"Ab12Cd34\", \"https://example.com/a?b=1#part\", Instant.parse(\"2026-01-01T00:00:00Z\"), 0, null);\n+    private MockMvc mvc;\n+\n+    @BeforeEach\n+    void setUp() {\n+        validator.afterPropertiesSet();\n+        mvc = mvcFor(\"https://public.example:8443/links/\");\n+    }\n+\n+    private MockMvc mvcFor(String base) {\n+        var mapper = Jackson2ObjectMapperBuilder.json()\n+                .featuresToDisable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS).build();\n+        return MockMvcBuilders.standaloneSetup(new UrlController(service, base))\n+                .setControllerAdvice(new UrlErrors()).setValidator(validator)\n+                .setMessageConverters(new MappingJackson2HttpMessageConverter(mapper)).build();\n+    }\n+\n+    @AfterEach\n+    void closeValidator() {\n+        validator.close();\n+    }\n+\n+    @Test\n+    void creationUsesConfiguredBaseDespiteConflictingClientOrigin() throws Exception {\n+        when(service.create(saved.url())).thenReturn(saved);\n+        mvc.perform(post(\"/app/api/urls\").contextPath(\"/app\")\n+                        .with(request -> {\n+                            request.setScheme(\"http\");\n+                            request.setServerName(\"untrusted.example\");\n+                            request.setServerPort(9999);\n+                            return request;\n+                        })\n+                        .header(\"Host\", \"attacker.example:9999\")\n+                        .header(\"Forwarded\", \"proto=http;host=forwarded.example\")\n+                        .header(\"X-Forwarded-Host\", \"forwarded.example\")\n+                        .header(\"X-Forwarded-Proto\", \"http\")\n+                        .header(\"X-Forwarded-Port\", \"80\")\n+                        .contentType(MediaType.APPLICATION_JSON).content(body()))\n+                .andExpect(status().isCreated())\n+                .andExpect(header().string(\"Location\", \"https://public.example:8443/links/r/Ab12Cd34\"))\n+                .andExpect(jsonPath(\"$.code\").value(saved.code()))\n+                .andExpect(jsonPath(\"$.shortUrl\").value(\"https://public.example:8443/links/r/Ab12Cd34\"))\n+                .andExpect(jsonPath(\"$.url\").value(saved.url()))\n+                .andExpect(jsonPath(\"$.createdAt\").value(\"2026-01-01T00:00:00Z\"));\n+        verify(service).create(saved.url());\n+        verifyNoMoreInteractions(service);\n+    }\n+\n+    @ParameterizedTest\n+    @ValueSource(strings = {\"http://127.0.0.1:8000\", \"http://127.0.0.1:8000/\"})\n+    void rootBaseProducesOnePathSeparator(String base) throws Exception {\n+        when(service.create(saved.url())).thenReturn(saved);\n+        mvcFor(base).perform(post(\"/api/urls\").contentType(MediaType.APPLICATION_JSON).content(body()))\n+                .andExpect(status().isCreated())\n+                .andExpect(header().string(\"Location\", \"http://127.0.0.1:8000/r/Ab12Cd34\"))\n+                .andExpect(jsonPath(\"$.shortUrl\").value(\"http://127.0.0.1:8000/r/Ab12Cd34\"));\n+    }\n+\n+    @ParameterizedTest\n+    @ValueSource(strings = {\"/relative\", \"ftp://example.com\", \"https://user@example.com\",\n+            \"https://example.com/?query=1\", \"https://example.com/#fragment\"})\n+    void rejectsInvalidPublicBaseConfiguration(String base) {\n+        assertThrows(IllegalArgumentException.class, () -> new UrlController(service, base));\n+    }\n+\n+    private String body() {\n+        return \"{\\\"url\\\":\\\"\" + saved.url() + \"\\\"}\";\n+    }\n+\n+    @ParameterizedTest\n+    @ValueSource(strings = {\n+            \"\", \"{\", \"null\", \"[]\", \"{}\", \"{\\\"url\\\":null}\", \"{\\\"url\\\":42}\",\n+            \"{\\\"url\\\":true}\", \"{\\\"url\\\":{}}\", \"{\\\"url\\\":[]}\", \"{\\\"url\\\":\\\"\\\"}\",\n+            \"{\\\"url\\\":\\\"ftp://example.com\\\"}\", \"{\\\"url\\\":\\\"https://user@example.com\\\"}\",\n+            \"{\\\"url\\\":\\\"https://example.com/\\\\r\\\\n\\\"}\"\n+    })\n+    void rejectsInvalidBodiesWithoutCallingService(String body) throws Exception {\n+        mvc.perform(post(\"/api/urls\").contentType(MediaType.APPLICATION_JSON).content(body))\n+                .andExpect(status().isBadRequest());\n+        verifyNoInteractions(service);\n+    }\n+\n+    @Test\n+    void redirectsOnceWithExactDestination() throws Exception {\n+        when(service.redirect(saved.code())).thenReturn(saved.url());\n+        mvc.perform(get(\"/r/{code}\", saved.code()))\n+                .andExpect(status().isFound()).andExpect(header().string(\"Location\", saved.url()));\n+        verify(service).redirect(saved.code());\n+        verifyNoMoreInteractions(service);\n+    }\n+\n+    @Test\n+    void initialAnalyticsHasZeroClicksAndNullAccessTime() throws Exception {\n+        when(service.analytics(saved.code())).thenReturn(saved);\n+        mvc.perform(get(\"/api/urls/{code}/analytics\", saved.code()))\n+                .andExpect(status().isOk())\n+                .andExpect(jsonPath(\"$.code\").value(saved.code()))\n+                .andExpect(jsonPath(\"$.url\").value(saved.url()))\n+                .andExpect(jsonPath(\"$.createdAt\").value(\"2026-01-01T00:00:00Z\"))\n+                .andExpect(jsonPath(\"$.clickCount\").value(0))\n+                .andExpect(jsonPath(\"$.lastAccessedAt\").value(nullValue()));\n+        verify(service).analytics(saved.code());\n+        verifyNoMoreInteractions(service);\n+    }\n+\n+    @Test\n+    void analyticsIncludesRecordedAccessTime() throws Exception {\n+        when(service.analytics(saved.code())).thenReturn(new UrlRepository.StoredUrl(\n+                saved.code(), saved.url(), saved.createdAt(), 12, Instant.parse(\"2026-01-02T00:00:00Z\")));\n+        mvc.perform(get(\"/api/urls/{code}/analytics\", saved.code()))\n+                .andExpect(status().isOk()).andExpect(jsonPath(\"$.clickCount\").value(12))\n+                .andExpect(jsonPath(\"$.lastAccessedAt\").value(\"2026-01-02T00:00:00Z\"));\n+    }\n+\n+    @Test\n+    void mapsUnknownCodesTo404() throws Exception {\n+        when(service.redirect(\"missing\")).thenThrow(new UrlService.UnknownCode());\n+        when(service.analytics(\"missing\")).thenThrow(new UrlService.UnknownCode());\n+        mvc.perform(get(\"/r/missing\")).andExpect(status().isNotFound());\n+        mvc.perform(get(\"/api/urls/missing/analytics\")).andExpect(status().isNotFound());\n+    }\n+\n+    @Test\n+    void mapsExhaustionTo503AndHidesInternalDetails() throws Exception {\n+        when(service.create(saved.url())).thenThrow(new UrlService.AllocationExhausted());\n+        mvc.perform(post(\"/api/urls\").contentType(MediaType.APPLICATION_JSON).content(body()))\n+                .andExpect(status().isServiceUnavailable());\n+        when(service.analytics(\"broken\")).thenThrow(new IllegalStateException(\"private SQL diagnostics\"));\n+        mvc.perform(get(\"/api/urls/broken/analytics\"))\n+                .andExpect(status().isInternalServerError())\n+                .andExpect(content().json(\"{\\\"error\\\":\\\"Internal server error\\\"}\"));\n+    }\n+}\ndiff --git a/backend/src/test/java/com/urlshortner/urls/UrlServiceTest.java b/backend/src/test/java/com/urlshortner/urls/UrlServiceTest.java\nnew file mode 100644\nindex 0000000..3089aa4\n--- /dev/null\n+++ b/backend/src/test/java/com/urlshortner/urls/UrlServiceTest.java\n@@ -0,0 +1,120 @@\n+package com.urlshortner.urls;\n+\n+import java.sql.SQLException;\n+import java.time.Instant;\n+import java.util.Optional;\n+import org.junit.jupiter.api.BeforeEach;\n+import org.junit.jupiter.api.Test;\n+import org.springframework.dao.DataAccessResourceFailureException;\n+import org.springframework.dao.DuplicateKeyException;\n+import static org.junit.jupiter.api.Assertions.*;\n+import static org.mockito.Mockito.*;\n+\n+class UrlServiceTest {\n+    private final UrlRepository repository = mock(UrlRepository.class);\n+    private final CodeGenerator codes = mock(CodeGenerator.class);\n+    private final UrlService service = new UrlService(repository, codes);\n+    private final UrlRepository.StoredUrl saved = new UrlRepository.StoredUrl(\n+            \"Ab12Cd34\", \"https://example.com/a\", Instant.parse(\"2026-01-01T00:00:00Z\"), 0, null);\n+\n+    @BeforeEach\n+    void setUp() {\n+        when(codes.next()).thenReturn(saved.code());\n+    }\n+\n+    private DuplicateKeyException conflict(String constraint, String state) throws Exception {\n+        // Construct actual runtime-driver metadata without a compile-time driver dependency.\n+        Class<?> detailType = Class.forName(\"org.postgresql.util.ServerErrorMessage\");\n+        String fields = \"SERROR\\0C\" + state + \"\\0Mduplicate\\0surl_service\\0turls\\0n\" + constraint + \"\\0\\0\";\n+        Object detail = detailType.getConstructor(String.class).newInstance(fields);\n+        SQLException sql = (SQLException) Class.forName(\"org.postgresql.util.PSQLException\")\n+                .getConstructor(detailType).newInstance(detail);\n+        return new DuplicateKeyException(\"collision\", sql);\n+    }\n+\n+    @Test\n+    void preservesStoredCreationValues() {\n+        when(repository.insert(saved.code(), saved.url())).thenReturn(saved);\n+        assertSame(saved, service.create(saved.url()));\n+        verify(repository).insert(saved.code(), saved.url());\n+    }\n+\n+    @Test\n+    void recoversFromOneCollision() throws Exception {\n+        when(codes.next()).thenReturn(\"00000000\", saved.code());\n+        when(repository.insert(\"00000000\", saved.url())).thenThrow(conflict(\"pk_urls_code\", \"23505\"));\n+        when(repository.insert(saved.code(), saved.url())).thenReturn(saved);\n+        assertSame(saved, service.create(saved.url()));\n+        verify(codes, times(2)).next();\n+    }\n+\n+    @Test\n+    void succeedsOnFifthAttempt() throws Exception {\n+        DuplicateKeyException collision = conflict(\"pk_urls_code\", \"23505\");\n+        when(repository.insert(saved.code(), saved.url()))\n+                .thenThrow(collision).thenThrow(collision).thenThrow(collision).thenThrow(collision).thenReturn(saved);\n+        assertSame(saved, service.create(saved.url()));\n+        verify(repository, times(5)).insert(saved.code(), saved.url());\n+    }\n+\n+    @Test\n+    void stopsAfterFiveCollisions() throws Exception {\n+        when(repository.insert(saved.code(), saved.url())).thenThrow(conflict(\"pk_urls_code\", \"23505\"));\n+        assertThrows(UrlService.AllocationExhausted.class, () -> service.create(saved.url()));\n+        verify(repository, times(5)).insert(saved.code(), saved.url());\n+        verify(codes, times(5)).next();\n+    }\n+\n+    @Test\n+    void doesNotRetryOtherConstraintsOrStates() throws Exception {\n+        for (DuplicateKeyException failure : new DuplicateKeyException[] {\n+                conflict(\"other_constraint\", \"23505\"), conflict(\"pk_urls_code\", \"23503\"),\n+                new DuplicateKeyException(\"pk_urls_code\", new SQLException(\"pk_urls_code\", \"23505\"))\n+        }) {\n+            reset(repository);\n+            when(repository.insert(saved.code(), saved.url())).thenThrow(failure);\n+            assertSame(failure, assertThrows(DuplicateKeyException.class, () -> service.create(saved.url())));\n+            verify(repository).insert(saved.code(), saved.url());\n+        }\n+    }\n+\n+    @Test\n+    void propagatesDatabaseFailuresImmediately() {\n+        var failure = new DataAccessResourceFailureException(\"unavailable\");\n+        when(repository.insert(saved.code(), saved.url())).thenThrow(failure);\n+        assertSame(failure, assertThrows(DataAccessResourceFailureException.class, () -> service.create(saved.url())));\n+        verify(repository).insert(saved.code(), saved.url());\n+    }\n+\n+    @Test\n+    void invalidDestinationDoesNotReachPersistence() {\n+        assertThrows(IllegalArgumentException.class, () -> service.create(\"ftp://example.com\"));\n+        verifyNoInteractions(repository, codes);\n+    }\n+\n+    @Test\n+    void redirectAccountsExactlyOnceAndAnalyticsOnlyReads() {\n+        when(repository.recordRedirect(saved.code())).thenReturn(Optional.of(saved.url()));\n+        when(repository.find(saved.code())).thenReturn(Optional.of(saved));\n+        assertEquals(saved.url(), service.redirect(saved.code()));\n+        verify(repository).recordRedirect(saved.code());\n+        clearInvocations(repository);\n+        assertSame(saved, service.analytics(saved.code()));\n+        verify(repository).find(saved.code());\n+        verify(repository, never()).recordRedirect(anyString());\n+    }\n+\n+    @Test\n+    void unknownCodesAreExplicitlyAbsent() {\n+        when(repository.recordRedirect(\"missing\")).thenReturn(Optional.empty());\n+        when(repository.find(\"missing\")).thenReturn(Optional.empty());\n+        assertThrows(UrlService.UnknownCode.class, () -> service.redirect(\"missing\"));\n+        assertThrows(UrlService.UnknownCode.class, () -> service.analytics(\"missing\"));\n+    }\n+\n+    @Test\n+    void generatedCodesHaveRequiredAlphabetAndLength() {\n+        CodeGenerator generator = new CodeGenerator();\n+        for (int i = 0; i < 100; i++) assertTrue(generator.next().matches(\"[0-9A-Za-z]{8}\"));\n+    }\n+}",
+    "audit_chain_valid": true,
+    "total_repair_cycles": 2,
+    "total_retries": 1,
+    "end_to_end_seconds": 1858.822
+  },
+  "events": [
+    {
+      "at": "2026-10-14T12:31:17.277681+00:00",
+      "data": {
+        "base_sha": "39e155fce4b80db24bb5235c841295fb96acd764",
+        "config": {
+          "limits": {
+            "active_minutes": 30,
+            "call_timeout_seconds": 240,
+            "max_model_calls": 24,
+            "max_repair_cycles": 2
+          },
+          "model": "",
+          "provider": "codex"
+        },
+        "requirement": "Build a Java URL shortener with POST /api/urls accepting {url}, GET /r/{code} returning a 302 redirect, and GET /api/urls/{code}/analytics returning code, url, createdAt, clickCount, lastAccessedAt. Return code and shortUrl from creation with status 201. Persist in PostgreSQL using JdbcTemplate and a Flyway migration. Validate HTTP/HTTPS destinations without fetching them, reject credentials/control characters, use cryptographically random base62 codes with bounded unique-conflict retries, and count concurrent redirects atomically. Add JUnit tests. No expiration or rate limiting in this baseline.",
+        "revision": 1,
+        "scenario": "greenfield"
+      },
+      "kind": "run_created",
+      "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 1,
+      "hash": "9f6926be9e3a23285a174f727523d52a48eccc677a156d5eee02769887824bc7"
+    },
+    {
+      "at": "2026-10-14T12:31:17.837537+00:00",
+      "data": {
+        "node": "requirements",
+        "revision": 1
+      },
+      "kind": "node_started",
+      "previous_hash": "9f6926be9e3a23285a174f727523d52a48eccc677a156d5eee02769887824bc7",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 2,
+      "hash": "d2d675812812feb8f8a3451d20a91f98f07e5fd0628179c6b4b5d17e49db5bdc"
+    },
+    {
+      "at": "2026-10-14T12:31:17.875896+00:00",
+      "data": {
+        "attempt": 1,
+        "model": "CLI default",
+        "node": "requirements",
+        "provider": "codex"
+      },
+      "kind": "model_call",
+      "previous_hash": "d2d675812812feb8f8a3451d20a91f98f07e5fd0628179c6b4b5d17e49db5bdc",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 3,
+      "hash": "5fc7e58a3764c8d76805fa02945f9b93cf3d3afd579d303085c7887fd84c5267"
+    },
+    {
+      "at": "2026-10-14T12:31:50.224090+00:00",
+      "data": {
+        "node": "requirements",
+        "revision": 1
+      },
+      "kind": "node_completed",
+      "previous_hash": "5fc7e58a3764c8d76805fa02945f9b93cf3d3afd579d303085c7887fd84c5267",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 4,
+      "hash": "9d91e4f3f767846a3900b2dd56012139d9266a4414975d0b57f9a80b04dbd42a"
+    },
+    {
+      "at": "2026-10-14T12:31:51.040278+00:00",
+      "data": {
+        "node": "plan",
+        "revision": 1
+      },
+      "kind": "node_started",
+      "previous_hash": "9d91e4f3f767846a3900b2dd56012139d9266a4414975d0b57f9a80b04dbd42a",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 5,
+      "hash": "fe3106f16a78efd29e3ab441651e6f15601abd1922c3355a93ffff74e7fa8ebb"
+    },
+    {
+      "at": "2026-10-14T12:31:51.303759+00:00",
+      "data": {
+        "attempt": 1,
+        "model": "CLI default",
+        "node": "plan",
+        "provider": "codex"
+      },
+      "kind": "model_call",
+      "previous_hash": "fe3106f16a78efd29e3ab441651e6f15601abd1922c3355a93ffff74e7fa8ebb",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 6,
+      "hash": "cf0cc40794004668e5154cda107157cf0597217df54d9181908289507ff8ab30"
+    },
+    {
+      "at": "2026-10-14T12:32:40.662502+00:00",
+      "data": {
+        "node": "plan",
+        "revision": 1
+      },
+      "kind": "node_completed",
+      "previous_hash": "cf0cc40794004668e5154cda107157cf0597217df54d9181908289507ff8ab30",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 7,
+      "hash": "d8eb4249a4b3fa3861afd590b7b86874ef0337abc190367db46a0bf07974212f"
+    },
+    {
+      "at": "2026-10-14T12:32:41.023084+00:00",
+      "data": {
+        "node": "architecture",
+        "revision": 1
+      },
+      "kind": "node_started",
+      "previous_hash": "d8eb4249a4b3fa3861afd590b7b86874ef0337abc190367db46a0bf07974212f",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 8,
+      "hash": "45abd6a20e77f59ee73ba8ba9a8732c296e87d9245781451955bc7ad05443423"
+    },
+    {
+      "at": "2026-10-14T12:32:41.155896+00:00",
+      "data": {
+        "attempt": 1,
+        "model": "CLI default",
+        "node": "architecture",
+        "provider": "codex"
+      },
+      "kind": "model_call",
+      "previous_hash": "45abd6a20e77f59ee73ba8ba9a8732c296e87d9245781451955bc7ad05443423",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 9,
+      "hash": "30eb64bf097edbe01134e26a07aa41e613f6a8705d9974abe0461bb62d9b8dc0"
+    },
+    {
+      "at": "2026-10-14T12:32:41.283616+00:00",
+      "data": {
+        "node": "test_design",
+        "revision": 1
+      },
+      "kind": "node_started",
+      "previous_hash": "30eb64bf097edbe01134e26a07aa41e613f6a8705d9974abe0461bb62d9b8dc0",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 10,
+      "hash": "2205c68f196098eaa22626d66f86019d2d4def2289410cd87fd1a1af268b98e0"
+    },
+    {
+      "at": "2026-10-14T12:32:41.347737+00:00",
+      "data": {
+        "attempt": 1,
+        "model": "CLI default",
+        "node": "test_design",
+        "provider": "codex"
+      },
+      "kind": "model_call",
+      "previous_hash": "2205c68f196098eaa22626d66f86019d2d4def2289410cd87fd1a1af268b98e0",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 11,
+      "hash": "338dd6482c09b5341e664779921bd90ea8ad4042d863a5bb32fc5910e8238ccf"
+    },
+    {
+      "at": "2026-10-14T12:33:29.919700+00:00",
+      "data": {
+        "node": "architecture",
+        "revision": 1
+      },
+      "kind": "node_completed",
+      "previous_hash": "338dd6482c09b5341e664779921bd90ea8ad4042d863a5bb32fc5910e8238ccf",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 12,
+      "hash": "6c2edbba9a22691fad2989581393370f123e2b4507a045a9d3ab5c86031227ba"
+    },
+    {
+      "at": "2026-10-14T12:33:34.141547+00:00",
+      "data": {
+        "node": "test_design",
+        "revision": 1
+      },
+      "kind": "node_completed",
+      "previous_hash": "6c2edbba9a22691fad2989581393370f123e2b4507a045a9d3ab5c86031227ba",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 13,
+      "hash": "53acd3969a0e706d67893265c65b3325cf98d43b7b5b7cbd4a0c48bb74a00983"
+    },
+    {
+      "at": "2026-10-14T12:33:34.203170+00:00",
+      "data": {
+        "node": "change_approval",
+        "revision": 1
+      },
+      "kind": "node_started",
+      "previous_hash": "53acd3969a0e706d67893265c65b3325cf98d43b7b5b7cbd4a0c48bb74a00983",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 14,
+      "hash": "4825e28e14fcb2c73c8fa7a8431b5f0365eb1c25ff8b455d6241870d40df15ba"
+    },
+    {
+      "at": "2026-10-14T12:33:34.233110+00:00",
+      "data": {
+        "node": "change_approval",
+        "revision": 1
+      },
+      "kind": "node_completed",
+      "previous_hash": "4825e28e14fcb2c73c8fa7a8431b5f0365eb1c25ff8b455d6241870d40df15ba",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 15,
+      "hash": "1f7ea6e7918c9a3bb7a633adc6c552b05676edaf99f73afac95c0cff6eddc7e5"
+    },
+    {
+      "at": "2026-10-14T12:33:34.289639+00:00",
+      "data": {
+        "node": "implementation",
+        "revision": 1
+      },
+      "kind": "node_started",
+      "previous_hash": "1f7ea6e7918c9a3bb7a633adc6c552b05676edaf99f73afac95c0cff6eddc7e5",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 16,
+      "hash": "79039d45c1973044144a721b87b4838c7212a64c03a48ab7ab4639ae0bda87e7"
+    },
+    {
+      "at": "2026-10-14T12:33:34.342933+00:00",
+      "data": {
+        "attempt": 1,
+        "model": "CLI default",
+        "node": "implementation",
+        "provider": "codex"
+      },
+      "kind": "model_call",
+      "previous_hash": "79039d45c1973044144a721b87b4838c7212a64c03a48ab7ab4639ae0bda87e7",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 17,
+      "hash": "11af4194dc04459bf12d721f4c89937e8992a452069e7c8ed3724998711fdb28"
+    },
+    {
+      "at": "2026-10-14T12:35:57.931132+00:00",
+      "data": {
+        "node": "implementation",
+        "revision": 1
+      },
+      "kind": "node_completed",
+      "previous_hash": "11af4194dc04459bf12d721f4c89937e8992a452069e7c8ed3724998711fdb28",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 18,
+      "hash": "0f79c8625a15469ecad3f468ae7539bff2526ae6255c747c9e23ea6547265fe8"
+    },
+    {
+      "at": "2026-10-14T12:35:58.168194+00:00",
+      "data": {
+        "node": "documentation",
+        "revision": 1
+      },
+      "kind": "node_started",
+      "previous_hash": "0f79c8625a15469ecad3f468ae7539bff2526ae6255c747c9e23ea6547265fe8",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 19,
+      "hash": "69f639396ee01d50acbd6a3c5d906e9fb19f1f9e64a0ff210506528733eee00c"
+    },
+    {
+      "at": "2026-10-14T12:35:58.511015+00:00",
+      "data": {
+        "attempt": 1,
+        "model": "CLI default",
+        "node": "documentation",
+        "provider": "codex"
+      },
+      "kind": "model_call",
+      "previous_hash": "69f639396ee01d50acbd6a3c5d906e9fb19f1f9e64a0ff210506528733eee00c",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 20,
+      "hash": "155248652dc731ef3d99566beac2ee1c85bdd58bdd89267cf64bbecb7c7a243f"
+    },
+    {
+      "at": "2026-10-14T12:35:59.097025+00:00",
+      "data": {
+        "node": "tests",
+        "revision": 1
+      },
+      "kind": "node_started",
+      "previous_hash": "155248652dc731ef3d99566beac2ee1c85bdd58bdd89267cf64bbecb7c7a243f",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 21,
+      "hash": "1fbe855ae41ca501e421950f23871372e4137940a5789f7314820dea973560d8"
+    },
+    {
+      "at": "2026-10-14T12:36:42.248560+00:00",
+      "data": {
+        "node": "documentation",
+        "revision": 1
+      },
+      "kind": "node_completed",
+      "previous_hash": "1fbe855ae41ca501e421950f23871372e4137940a5789f7314820dea973560d8",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 22,
+      "hash": "b368e3c2b07dd218c1365d1c63a06a6f39282af6ce75fb9a75f0083c8d49fcc2"
+    },
+    {
+      "at": "2026-10-14T12:36:53.846004+00:00",
+      "data": {
+        "node": "tests",
+        "revision": 1
+      },
+      "kind": "node_completed",
+      "previous_hash": "b368e3c2b07dd218c1365d1c63a06a6f39282af6ce75fb9a75f0083c8d49fcc2",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 23,
+      "hash": "00c999fef55e6941521fc84b792a7a5153e5fca6bd8e912265289e832d15c7e1"
+    },
+    {
+      "at": "2026-10-14T12:36:53.948095+00:00",
+      "data": {
+        "cases": [],
+        "passed": false,
+        "source_sha": "e27896d26e53c4dc35a393fc95b2330d65725689"
+      },
+      "kind": "validation_result",
+      "previous_hash": "00c999fef55e6941521fc84b792a7a5153e5fca6bd8e912265289e832d15c7e1",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 24,
+      "hash": "212069bc49a3214126d9f80b0d7c77eded9973e11ee74f02eb8ac8e81b2d9f71"
+    },
+    {
+      "at": "2026-10-14T12:36:54.118020+00:00",
+      "data": {
+        "node": "review",
+        "revision": 1
+      },
+      "kind": "node_started",
+      "previous_hash": "212069bc49a3214126d9f80b0d7c77eded9973e11ee74f02eb8ac8e81b2d9f71",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 25,
+      "hash": "8877ec9f66c2743caf14c601b71b45db034a065e63dd2ed4a8a0ce79b7018329"
+    },
+    {
+      "at": "2026-10-14T12:36:54.205886+00:00",
+      "data": {
+        "attempt": 1,
+        "model": "CLI default",
+        "node": "review",
+        "provider": "codex"
+      },
+      "kind": "model_call",
+      "previous_hash": "8877ec9f66c2743caf14c601b71b45db034a065e63dd2ed4a8a0ce79b7018329",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 26,
+      "hash": "033b49f995ab0ff9d4b9b665f081af6ed11a90781f91571854e872fd89831b0f"
+    },
+    {
+      "at": "2026-10-14T12:37:24.001974+00:00",
+      "data": {
+        "node": "review",
+        "revision": 1
+      },
+      "kind": "node_completed",
+      "previous_hash": "033b49f995ab0ff9d4b9b665f081af6ed11a90781f91571854e872fd89831b0f",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 27,
+      "hash": "9752edc9d6fb179557b19583d7b7e8bdf2fc63dcfa3f66aaa0b0808818bf05a6"
+    },
+    {
+      "at": "2026-10-14T12:37:24.303039+00:00",
+      "data": {
+        "cycle": 1,
+        "review_verdict": "revise",
+        "tests_passed": false
+      },
+      "kind": "repair_requested",
+      "previous_hash": "9752edc9d6fb179557b19583d7b7e8bdf2fc63dcfa3f66aaa0b0808818bf05a6",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 28,
+      "hash": "fb7e04752cc69b0deaf9529c31f91bd2731050b481538d6784ea16448e91b68b"
+    },
+    {
+      "at": "2026-10-14T12:37:24.485265+00:00",
+      "data": {
+        "node": "implementation",
+        "revision": 1
+      },
+      "kind": "node_started",
+      "previous_hash": "fb7e04752cc69b0deaf9529c31f91bd2731050b481538d6784ea16448e91b68b",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 29,
+      "hash": "d8a509d926c4bbb62f03f477420a326b0499803b01bdf7c3a491c29ca8c39fe6"
+    },
+    {
+      "at": "2026-10-14T12:37:24.539237+00:00",
+      "data": {
+        "attempt": 1,
+        "model": "CLI default",
+        "node": "implementation",
+        "provider": "codex"
+      },
+      "kind": "model_call",
+      "previous_hash": "d8a509d926c4bbb62f03f477420a326b0499803b01bdf7c3a491c29ca8c39fe6",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 30,
+      "hash": "8f760c865994dbf717583cf10d532590cf806154826a2ec1e33391f1b8067e46"
+    },
+    {
+      "at": "2026-10-14T12:38:21.609491+00:00",
+      "data": {
+        "node": "implementation",
+        "revision": 1
+      },
+      "kind": "node_completed",
+      "previous_hash": "8f760c865994dbf717583cf10d532590cf806154826a2ec1e33391f1b8067e46",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 31,
+      "hash": "72e3510fc8945482c8043f7fa1e289b899dc04be8fa947ced7f0f8ec8337f97d"
+    },
+    {
+      "at": "2026-10-14T12:38:21.676044+00:00",
+      "data": {
+        "node": "documentation",
+        "revision": 1
+      },
+      "kind": "node_started",
+      "previous_hash": "72e3510fc8945482c8043f7fa1e289b899dc04be8fa947ced7f0f8ec8337f97d",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 32,
+      "hash": "eb4fe26cc4ebbd2d4bc39ae8e6169527736027a2e6fdfff4a491297b061e8a24"
+    },
+    {
+      "at": "2026-10-14T12:38:21.780620+00:00",
+      "data": {
+        "attempt": 1,
+        "model": "CLI default",
+        "node": "documentation",
+        "provider": "codex"
+      },
+      "kind": "model_call",
+      "previous_hash": "eb4fe26cc4ebbd2d4bc39ae8e6169527736027a2e6fdfff4a491297b061e8a24",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 33,
+      "hash": "7546b24defaa6824e9b44384d544995fcdda8d122c2073fd994b477515c6eef9"
+    },
+    {
+      "at": "2026-10-14T12:38:22.051252+00:00",
+      "data": {
+        "node": "tests",
+        "revision": 1
+      },
+      "kind": "node_started",
+      "previous_hash": "7546b24defaa6824e9b44384d544995fcdda8d122c2073fd994b477515c6eef9",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 34,
+      "hash": "318c693a35c7cf6951944852c623464a173fcf69575cf875e1972a36e93527a9"
+    },
+    {
+      "at": "2026-10-14T12:39:03.260421+00:00",
+      "data": {
+        "node": "documentation",
+        "revision": 1
+      },
+      "kind": "node_completed",
+      "previous_hash": "318c693a35c7cf6951944852c623464a173fcf69575cf875e1972a36e93527a9",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 35,
+      "hash": "ec90fc2376032fd51c0452861b1476f33c0fa137ee7838f878087d6f9bbc2794"
+    },
+    {
+      "at": "2026-10-14T12:39:25.191336+00:00",
+      "data": {
+        "reason": "Docker operation failed: Error: No public port '8080' published for urlshortner-testapp-fcc92f3051df\n",
+        "rollback_sha": "39e155fce4b80db24bb5235c841295fb96acd764"
+      },
+      "kind": "safe_stop",
+      "previous_hash": "ec90fc2376032fd51c0452861b1476f33c0fa137ee7838f878087d6f9bbc2794",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 36,
+      "hash": "1704f0bcee70de4a64307cfa5045404589ca94038e85e6e8f0b64f944b790fd8"
+    },
+    {
+      "at": "2026-10-14T12:49:39.774972+00:00",
+      "data": {
+        "budgets_changed": false,
+        "reason": "Fixed isolated network HTTP runner"
+      },
+      "kind": "infrastructure_failure_classified",
+      "previous_hash": "1704f0bcee70de4a64307cfa5045404589ca94038e85e6e8f0b64f944b790fd8",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 37,
+      "hash": "87aa5bd465242b8fd5678e56be00353cb920699dd52fde0aeb0ee9ef29c94dd9"
+    },
+    {
+      "at": "2026-10-14T12:49:49.146165+00:00",
+      "data": {
+        "attempt": 1,
+        "budgets_preserved": true,
+        "restored_source_sha": "eb14f2c9a4461e52b096a1193154ee33e14071b0"
+      },
+      "kind": "infrastructure_retry",
+      "previous_hash": "87aa5bd465242b8fd5678e56be00353cb920699dd52fde0aeb0ee9ef29c94dd9",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 38,
+      "hash": "af957bf3f418d398000b44ea0652907885043ef1cb203319cc0d81db1d614b00"
+    },
+    {
+      "at": "2026-10-14T12:49:49.528280+00:00",
+      "data": {
+        "node": "tests",
+        "revision": 1
+      },
+      "kind": "node_started",
+      "previous_hash": "af957bf3f418d398000b44ea0652907885043ef1cb203319cc0d81db1d614b00",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 39,
+      "hash": "981e9a6e15d1686c25ac95966cf32ca1450bad8f099af51aa789fac2ad09f09c"
+    },
+    {
+      "at": "2026-10-14T12:51:40.753059+00:00",
+      "data": {
+        "node": "tests",
+        "revision": 1
+      },
+      "kind": "node_completed",
+      "previous_hash": "981e9a6e15d1686c25ac95966cf32ca1450bad8f099af51aa789fac2ad09f09c",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 40,
+      "hash": "5323183457b126cb5a00a872bb9d2dd57df96b97dec4aa3e640b058f17449f55"
+    },
+    {
+      "at": "2026-10-14T12:51:40.852506+00:00",
+      "data": {
+        "cases": [
+          {
+            "details": "201",
+            "name": "create returns 201",
+            "passed": true
+          },
+          {
+            "details": "",
+            "name": "creation includes short URL and random code",
+            "passed": true
+          },
+          {
+            "details": "302",
+            "name": "302 redirect preserves destination",
+            "passed": true
+          },
+          {
+            "details": "26",
+            "name": "concurrent clicks are not lost",
+            "passed": true
+          },
+          {
+            "details": "",
+            "name": "analytics includes timestamps",
+            "passed": true
+          },
+          {
+            "details": "404",
+            "name": "unknown link returns 404",
+            "passed": true
+          },
+          {
+            "details": "400",
+            "name": "invalid scheme rejected",
+            "passed": true
+          },
+          {
+            "details": "400",
+            "name": "embedded credentials rejected",
+            "passed": true
+          },
+          {
+            "details": "400",
+            "name": "control characters rejected",
+            "passed": true
+          },
+          {
+            "details": "400",
+            "name": "missing host rejected",
+            "passed": true
+          }
+        ],
+        "passed": true,
+        "source_sha": "eb14f2c9a4461e52b096a1193154ee33e14071b0"
+      },
+      "kind": "validation_result",
+      "previous_hash": "5323183457b126cb5a00a872bb9d2dd57df96b97dec4aa3e640b058f17449f55",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 41,
+      "hash": "517b7c2ebf194a49bf814c893d33e81954055de13b20be27356128a9c4764720"
+    },
+    {
+      "at": "2026-10-14T12:51:41.081722+00:00",
+      "data": {
+        "node": "review",
+        "revision": 1
+      },
+      "kind": "node_started",
+      "previous_hash": "517b7c2ebf194a49bf814c893d33e81954055de13b20be27356128a9c4764720",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 42,
+      "hash": "c4848d132002eed8944aa8b6ed3c82e6b21aee8e5b4cb257eb73fefc12806fc5"
+    },
+    {
+      "at": "2026-10-14T12:51:41.122427+00:00",
+      "data": {
+        "attempt": 1,
+        "model": "CLI default",
+        "node": "review",
+        "provider": "codex"
+      },
+      "kind": "model_call",
+      "previous_hash": "c4848d132002eed8944aa8b6ed3c82e6b21aee8e5b4cb257eb73fefc12806fc5",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 43,
+      "hash": "c037f181925680be3cfabc03919ad2ce9d48e3758eb5f3a2aa0556b93f9cf856"
+    },
+    {
+      "at": "2026-10-14T12:52:03.122655+00:00",
+      "data": {
+        "node": "review",
+        "revision": 1
+      },
+      "kind": "node_completed",
+      "previous_hash": "c037f181925680be3cfabc03919ad2ce9d48e3758eb5f3a2aa0556b93f9cf856",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 44,
+      "hash": "d2a0688fb30bcd4144cac21693c2736b2d336a0428d4fb6bffb6bcbfdcc71900"
+    },
+    {
+      "at": "2026-10-14T12:52:03.186014+00:00",
+      "data": {
+        "cycle": 2,
+        "review_verdict": "revise",
+        "tests_passed": true
+      },
+      "kind": "repair_requested",
+      "previous_hash": "d2a0688fb30bcd4144cac21693c2736b2d336a0428d4fb6bffb6bcbfdcc71900",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 45,
+      "hash": "d2ef01d591350801c5616100a732ae0e277625cb4623bfa5a607b89d144780ca"
+    },
+    {
+      "at": "2026-10-14T12:52:03.238381+00:00",
+      "data": {
+        "node": "implementation",
+        "revision": 1
+      },
+      "kind": "node_started",
+      "previous_hash": "d2ef01d591350801c5616100a732ae0e277625cb4623bfa5a607b89d144780ca",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 46,
+      "hash": "93f9dfdb17f90b4a904522a259b60d081385f1e44df2cdd956b3818738848321"
+    },
+    {
+      "at": "2026-10-14T12:52:03.275514+00:00",
+      "data": {
+        "attempt": 1,
+        "model": "CLI default",
+        "node": "implementation",
+        "provider": "codex"
+      },
+      "kind": "model_call",
+      "previous_hash": "93f9dfdb17f90b4a904522a259b60d081385f1e44df2cdd956b3818738848321",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 47,
+      "hash": "613be167f2a551cf1199a6d43bd5045c8f16ace25386bfac6bdaa839872526c0"
+    },
+    {
+      "at": "2026-10-14T12:53:42.186777+00:00",
+      "data": {
+        "node": "implementation",
+        "revision": 1
+      },
+      "kind": "node_completed",
+      "previous_hash": "613be167f2a551cf1199a6d43bd5045c8f16ace25386bfac6bdaa839872526c0",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 48,
+      "hash": "e380411b5ed4d73c5d825ef923be2195bd817a0d17c326ddf51364f0daba2899"
+    },
+    {
+      "at": "2026-10-14T12:53:42.252010+00:00",
+      "data": {
+        "node": "documentation",
+        "revision": 1
+      },
+      "kind": "node_started",
+      "previous_hash": "e380411b5ed4d73c5d825ef923be2195bd817a0d17c326ddf51364f0daba2899",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 49,
+      "hash": "a27b299607da1a302d6cefe93d28ec7c0bbd14ccbe4bc4d27d53726523d54e7f"
+    },
+    {
+      "at": "2026-10-14T12:53:42.355644+00:00",
+      "data": {
+        "attempt": 1,
+        "model": "CLI default",
+        "node": "documentation",
+        "provider": "codex"
+      },
+      "kind": "model_call",
+      "previous_hash": "a27b299607da1a302d6cefe93d28ec7c0bbd14ccbe4bc4d27d53726523d54e7f",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 50,
+      "hash": "dc6cdb74f6a770ba106cddf9892c65b8633ee51498ed1b06d7cd418787199a77"
+    },
+    {
+      "at": "2026-10-14T12:53:42.435794+00:00",
+      "data": {
+        "node": "tests",
+        "revision": 1
+      },
+      "kind": "node_started",
+      "previous_hash": "dc6cdb74f6a770ba106cddf9892c65b8633ee51498ed1b06d7cd418787199a77",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 51,
+      "hash": "350052f74bcda359a1ff309c0af1f1bbc533a2a8801b5d045eb92f6b3e3dd649"
+    },
+    {
+      "at": "2026-10-14T12:54:17.315519+00:00",
+      "data": {
+        "node": "documentation",
+        "revision": 1
+      },
+      "kind": "node_completed",
+      "previous_hash": "350052f74bcda359a1ff309c0af1f1bbc533a2a8801b5d045eb92f6b3e3dd649",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 52,
+      "hash": "afb03916d3bdb4d9439f125673a22c346d8bcb954607ee6e987fa6a9f9726057"
+    },
+    {
+      "at": "2026-10-14T12:55:04.818303+00:00",
+      "data": {
+        "node": "tests",
+        "revision": 1
+      },
+      "kind": "node_completed",
+      "previous_hash": "afb03916d3bdb4d9439f125673a22c346d8bcb954607ee6e987fa6a9f9726057",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 53,
+      "hash": "656b0952febade88ef6115ba96e7000d0c8a9a8e3d2bd8f290916da317fcfb5a"
+    },
+    {
+      "at": "2026-10-14T12:55:04.866018+00:00",
+      "data": {
+        "cases": [
+          {
+            "details": "201",
+            "name": "create returns 201",
+            "passed": true
+          },
+          {
+            "details": "",
+            "name": "creation includes short URL and random code",
+            "passed": true
+          },
+          {
+            "details": "302",
+            "name": "302 redirect preserves destination",
+            "passed": true
+          },
+          {
+            "details": "26",
+            "name": "concurrent clicks are not lost",
+            "passed": true
+          },
+          {
+            "details": "",
+            "name": "analytics includes timestamps",
+            "passed": true
+          },
+          {
+            "details": "404",
+            "name": "unknown link returns 404",
+            "passed": true
+          },
+          {
+            "details": "400",
+            "name": "invalid scheme rejected",
+            "passed": true
+          },
+          {
+            "details": "400",
+            "name": "embedded credentials rejected",
+            "passed": true
+          },
+          {
+            "details": "400",
+            "name": "control characters rejected",
+            "passed": true
+          },
+          {
+            "details": "400",
+            "name": "missing host rejected",
+            "passed": true
+          }
+        ],
+        "passed": true,
+        "source_sha": "2b8313ea0bee486ad154150b944f051126719516"
+      },
+      "kind": "validation_result",
+      "previous_hash": "656b0952febade88ef6115ba96e7000d0c8a9a8e3d2bd8f290916da317fcfb5a",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 54,
+      "hash": "f8edd77d4e7fd55ba3411ba129430b133c711bab925e9b5215b2587a44b9bd47"
+    },
+    {
+      "at": "2026-10-14T12:55:05.039940+00:00",
+      "data": {
+        "node": "review",
+        "revision": 1
+      },
+      "kind": "node_started",
+      "previous_hash": "f8edd77d4e7fd55ba3411ba129430b133c711bab925e9b5215b2587a44b9bd47",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 55,
+      "hash": "f24c6d86c0c9cd1342524a226cb2da6e19aed0460f0fbe6d539360dd2f7bc915"
+    },
+    {
+      "at": "2026-10-14T12:55:05.128856+00:00",
+      "data": {
+        "attempt": 1,
+        "model": "CLI default",
+        "node": "review",
+        "provider": "codex"
+      },
+      "kind": "model_call",
+      "previous_hash": "f24c6d86c0c9cd1342524a226cb2da6e19aed0460f0fbe6d539360dd2f7bc915",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 56,
+      "hash": "79a49ecbc5d9a37f826e4df571b2e78d034276f205dc706f5c6368199ea8f661"
+    },
+    {
+      "at": "2026-10-14T12:55:26.759820+00:00",
+      "data": {
+        "node": "review",
+        "revision": 1
+      },
+      "kind": "node_completed",
+      "previous_hash": "79a49ecbc5d9a37f826e4df571b2e78d034276f205dc706f5c6368199ea8f661",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 57,
+      "hash": "7d14152165bef6472078b08a2031b5743731c1502d6c7e4803161f35a2437963"
+    },
+    {
+      "at": "2026-10-14T12:55:26.932925+00:00",
+      "data": {
+        "approval_id": "06ae90b31f7a43af8b104e71e4c48b80",
+        "approval_kind": "promotion",
+        "artifact_hash": "39562773b2058159bcc543c4dade527ca5eb304f65afe4b67bbbcdbe8110d59f",
+        "node": "release_approval",
+        "reason": "Review the exact validated source, test evidence and local service promotion",
+        "revision": 1,
+        "source_sha": "2b8313ea0bee486ad154150b944f051126719516"
+      },
+      "kind": "approval_required",
+      "previous_hash": "7d14152165bef6472078b08a2031b5743731c1502d6c7e4803161f35a2437963",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 58,
+      "hash": "e583d46cf14f4c301303d7e869910e43987784c60ecebf407041f1d4c1f20a5e"
+    },
+    {
+      "at": "2026-10-14T13:01:44.561088+00:00",
+      "data": {
+        "approval_id": "06ae90b31f7a43af8b104e71e4c48b80",
+        "approved": true,
+        "artifact_hash": "39562773b2058159bcc543c4dade527ca5eb304f65afe4b67bbbcdbe8110d59f",
+        "authenticated_human_identity": false,
+        "decision_source": "workbench",
+        "reason": "Approved through the local Workbench UI",
+        "revision": 1
+      },
+      "kind": "human_decision",
+      "previous_hash": "e583d46cf14f4c301303d7e869910e43987784c60ecebf407041f1d4c1f20a5e",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 59,
+      "hash": "e12f8d0d5c988938c821834f45a914516c301b69bee2a734dca1c33ae2e1d0f5"
+    },
+    {
+      "at": "2026-10-14T13:01:44.846745+00:00",
+      "data": {
+        "node": "release_approval",
+        "revision": 1
+      },
+      "kind": "node_started",
+      "previous_hash": "e12f8d0d5c988938c821834f45a914516c301b69bee2a734dca1c33ae2e1d0f5",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 60,
+      "hash": "90e68c913884678d84870b8909356df95e22fb764ee77696154eb32231b56bd5"
+    },
+    {
+      "at": "2026-10-14T13:01:44.867147+00:00",
+      "data": {
+        "node": "release_approval",
+        "revision": 1
+      },
+      "kind": "node_completed",
+      "previous_hash": "90e68c913884678d84870b8909356df95e22fb764ee77696154eb32231b56bd5",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 61,
+      "hash": "5c0535cdcc6f727b36c8b70da07c37baa4e89cb7623ed32c0c9ec3a582942ca3"
+    },
+    {
+      "at": "2026-10-14T13:01:45.026226+00:00",
+      "data": {
+        "node": "promotion",
+        "revision": 1
+      },
+      "kind": "node_started",
+      "previous_hash": "5c0535cdcc6f727b36c8b70da07c37baa4e89cb7623ed32c0c9ec3a582942ca3",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 62,
+      "hash": "c62ee536e896eab7ffdf5fd15bac38f11bff8b8071c3332522ec6e854c513af0"
+    },
+    {
+      "at": "2026-10-14T13:02:15.614758+00:00",
+      "data": {
+        "node": "promotion",
+        "revision": 1
+      },
+      "kind": "node_completed",
+      "previous_hash": "c62ee536e896eab7ffdf5fd15bac38f11bff8b8071c3332522ec6e854c513af0",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 63,
+      "hash": "33b446622320df2fde8bc5951848071cd993b82610a0b65d82ac2dfb1dc663fd"
+    },
+    {
+      "at": "2026-10-14T13:02:15.660270+00:00",
+      "data": {
+        "node": "summary",
+        "revision": 1
+      },
+      "kind": "node_started",
+      "previous_hash": "33b446622320df2fde8bc5951848071cd993b82610a0b65d82ac2dfb1dc663fd",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 64,
+      "hash": "c6078bd6a1172a9bd8c01577f5067411f7d63d216c6213e405f6f59d14023f46"
+    },
+    {
+      "at": "2026-10-14T13:02:15.822810+00:00",
+      "data": {
+        "node": "summary",
+        "revision": 1
+      },
+      "kind": "node_completed",
+      "previous_hash": "c6078bd6a1172a9bd8c01577f5067411f7d63d216c6213e405f6f59d14023f46",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 65,
+      "hash": "2acd700088dc662df0c9f97d0cc97032e43741243f87bfa7a0e4f6337a5d5308"
+    },
+    {
+      "at": "2026-10-14T13:02:15.851990+00:00",
+      "data": {
+        "revision": 1,
+        "source_sha": "2b8313ea0bee486ad154150b944f051126719516"
+      },
+      "kind": "run_completed",
+      "previous_hash": "2acd700088dc662df0c9f97d0cc97032e43741243f87bfa7a0e4f6337a5d5308",
+      "run_id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "seq": 66,
+      "hash": "e31237fa68bc86161e7ce9770590022e1238ae65755d7be265c799d079e4ca05"
+    }
+  ],
+  "provenance": {
+    "model_output": "Live ChatGPT-authenticated Codex CLI",
+    "test_execution": "Real isolated Docker execution",
+    "automatic_decisions": "verification; not authenticated human identity",
+    "source_sha_scope": "isolated run workspace Git repository",
+    "limitations": "Local event chain, not an independently signed archive"
+  }
+}

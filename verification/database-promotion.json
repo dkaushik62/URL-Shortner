@@ -1,0 +1,11 @@
+{
+  "passed": true,
+  "kind": "model-free promotion rehearsal using previously validated jars",
+  "fresh_greenfield_database": "urls_dddddddddddddddddddddddddddddddd",
+  "brownfield_copied_database": "urls_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "existing_link_and_clicks_preserved": true,
+  "original_databases_retained": true,
+  "new_model_calls": 0,
+  "source_adoption_performed": false,
+  "prior_demo_restored": true
+}

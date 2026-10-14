@@ -1,0 +1,5 @@
+[tool.pytest.ini_options]
+testpaths = ["orchestrator/tests"]
+asyncio_mode = "auto"
+pythonpath = ["."]
+filterwarnings = ["error", "ignore::DeprecationWarning"]

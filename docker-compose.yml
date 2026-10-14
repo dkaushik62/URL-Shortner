@@ -1,0 +1,81 @@
+name: url-shortner
+services:
+  postgres:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_DB: workbench
+      POSTGRES_USER: workbench
+      POSTGRES_PASSWORD: local_workbench
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/assignment.sql:ro
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U workbench -d workbench"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  business_postgres:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_DB: business_admin
+      POSTGRES_USER: business_admin
+      POSTGRES_PASSWORD: local_business_admin
+    volumes:
+      - business-data:/var/lib/postgresql/data
+      - ./infra/postgres/business-init.sql:/docker-entrypoint-initdb.d/assignment.sql:ro
+    networks:
+      business:
+        aliases: [postgres]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U business_admin -d business_admin"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  backend:
+    build:
+      context: backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${SHORTENER_DATABASE_NAME:-urls}
+      SPRING_DATASOURCE_USERNAME: url_app
+      SPRING_DATASOURCE_PASSWORD: local_url_app
+      SHORTENER_PUBLIC_BASE_URL: http://127.0.0.1:8000
+      SHORTENER_MAX_EXPIRY_DAYS: ${SHORTENER_MAX_EXPIRY_DAYS:-7}
+      SHORTENER_CREATION_LIMIT: ${SHORTENER_CREATION_LIMIT:-20}
+    networks:
+      business:
+        aliases: [demoapp]
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=128m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true", "seccomp=./infra/runner/seccomp.json"]
+    mem_limit: 768m
+    cpus: 1
+    pids_limit: 128
+    depends_on:
+      business_postgres:
+        condition: service_healthy
+  proxy:
+    image: urlshortner-acceptance:local
+    command: ["/checks/bridge.py"]
+    container_name: urlshortner-demo-proxy
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks: [default, business]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true", "seccomp=./infra/runner/seccomp.json"]
+    mem_limit: 128m
+    cpus: 1
+    pids_limit: 64
+    depends_on: [backend]
+networks:
+  business:
+    name: urlshortner-demo-internal
+    internal: true
+volumes:
+  postgres-data:
+  business-data:
