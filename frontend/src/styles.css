@@ -9,3 +9,5 @@
 .pr-result{padding:22px;margin-bottom:18px;border-color:#d8ddf3}.pr-result h3{font-size:17px}.pr-result p{font-size:11px;color:var(--muted);margin:8px 0}.pr-result a{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;overflow-wrap:anywhere}.requirement-card .scenario-selector{flex-wrap:wrap}.requirement-card .scenario-selector button{min-width:135px}
 @media(max-width:800px){.requirement-card .scenario-selector button{flex-basis:calc(50% - 6px);min-width:0}.pr-result{padding:18px}}
 @media(max-width:480px){nav button{min-width:0;font-size:10px;gap:5px;padding:10px 4px}nav button>svg:first-child{width:15px;height:15px;flex-shrink:0}nav .count{display:none}}
+
+.retry-card{padding:20px;margin-bottom:18px}.retry-card h3{font-size:15px}.retry-card p{font-size:11px;color:var(--muted);margin:9px 0}.retry-card label{max-width:240px;margin:12px 0}.retry-card input{margin-top:6px}.graph-node.stopped,.graph-node.failed{color:#a54f5d;background:#fff4f5;border-color:#f0d8dd}.graph-node.stopped .node-icon,.graph-node.failed .node-icon{color:#a54f5d;background:#f8e4e8}
