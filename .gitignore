@@ -1,0 +1,13 @@
+.venv/
+node_modules/
+frontend/dist/
+.runtime/
+backend/.gradle/
+backend/build/
+__pycache__/
+.pytest_cache/
+.env
+*.pyc
+*.log
+.DS_Store
+verification/private/
