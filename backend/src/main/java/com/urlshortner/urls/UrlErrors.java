@@ -10,6 +10,13 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class UrlErrors {
     public record ErrorBody(String error) {}
 
+    @ExceptionHandler(CreationRateLimiter.LimitExceeded.class)
+    public ResponseEntity<ErrorBody> limited(CreationRateLimiter.LimitExceeded exception) {
+        return ResponseEntity.status(429)
+                .header("Retry-After", Long.toString(exception.retryAfter()))
+                .body(new ErrorBody("Creation limit exceeded"));
+    }
+
     @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class, IllegalArgumentException.class})
     public ResponseEntity<ErrorBody> invalid(Exception exception) {
         return ResponseEntity.badRequest().body(new ErrorBody("Invalid creation request"));
