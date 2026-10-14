@@ -2,8 +2,9 @@
 
 `seccomp.json` is the unmodified default profile from
 [Moby 25.0.3](https://github.com/moby/moby/blob/v25.0.3/profiles/seccomp/default.json),
-matching the development Docker engine. Moby is licensed under
+matching the development Docker engine. Copyright The Moby Authors. Moby is licensed under
 [Apache License 2.0](https://github.com/moby/moby/blob/v25.0.3/LICENSE).
+The license is included in `LICENSE-Apache-2.0.txt`.
 
 The runner passes this reviewed profile explicitly because the development daemon
 reported an unconfined default. Missing/invalid policy fails closed. Build/test,
