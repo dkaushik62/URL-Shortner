@@ -33,7 +33,7 @@ services:
     read_only: true
     tmpfs: ["/tmp:rw,noexec,nosuid,size=128m"]
     cap_drop: [ALL]
-    security_opt: ["no-new-privileges:true"]
+    security_opt: ["no-new-privileges:true", "seccomp=./infra/runner/seccomp.json"]
     mem_limit: 768m
     cpus: 1
     pids_limit: 128
@@ -49,7 +49,7 @@ services:
     networks: [default, business]
     read_only: true
     cap_drop: [ALL]
-    security_opt: ["no-new-privileges:true"]
+    security_opt: ["no-new-privileges:true", "seccomp=./infra/runner/seccomp.json"]
     mem_limit: 128m
     cpus: 1
     pids_limit: 64

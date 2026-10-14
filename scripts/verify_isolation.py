@@ -22,6 +22,7 @@ def main():
     networks = {name: inspect("network", "inspect", name)["Internal"] for name in info["NetworkSettings"]["Networks"]}
     mounts = info["Mounts"]
     checks = {
+        "explicit_syscall_policy": any(option.startswith("seccomp=") and "SCMP_ACT_ERRNO" in option for option in config["SecurityOpt"]),
         "read_only_root": config["ReadonlyRootfs"],
         "non_root_user": info["Config"]["User"] not in {"", "0", "root"},
         "memory_cpu_process_bounds": 0 < config["Memory"] <= 768 * 1024 ** 2 and 0 < config["NanoCpus"] <= 1_000_000_000 and 0 < config["PidsLimit"] <= 128,
@@ -36,8 +37,10 @@ def main():
     # The protected checker shares only the app's internal network. Attempting an
     # external numeric IP avoids mistaking an external DNS error for isolation.
     network = next(iter(networks))
+    state = subprocess.check_output(["docker", "exec", info["Id"], "sh", "-c", "awk '$1 == \"Seccomp:\" {print $2}' /proc/self/status"], text=True).strip()
+    checks["kernel_syscall_filter_active"] = state == "2"
     code = "import socket; s=socket.socket(); s.settimeout(2); r=s.connect_ex(('1.1.1.1',443)); print(r); assert r != 0"
-    probe = subprocess.run(["docker", "run", "--rm", "--network", network, "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--memory", "128m", "--cpus", "1", "--pids-limit", "32", "urlshortner-acceptance:local", "-c", code], capture_output=True, text=True)
+    probe = subprocess.run(["docker", "run", "--rm", "--network", network, "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--security-opt", f"seccomp={ROOT / 'infra/runner/seccomp.json'}", "--memory", "128m", "--cpus", "1", "--pids-limit", "32", "urlshortner-acceptance:local", "-c", code], capture_output=True, text=True)
     checks["external_connection_blocked"] = probe.returncode == 0
     report = {"passed": all(checks.values()), "checks": checks, "networks": networks, "outbound_probe_exit": probe.returncode}
     output = ROOT / "verification/isolation.json"

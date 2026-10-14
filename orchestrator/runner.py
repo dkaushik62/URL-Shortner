@@ -25,6 +25,12 @@ class DockerRunner:
         self.project = project.resolve()
         self.runtime = runtime.resolve()
 
+    def syscall_policy(self) -> list[str]:
+        path = self.project / "infra/runner/seccomp.json"
+        if json.loads(path.read_text())["defaultAction"] != "SCMP_ACT_ERRNO":
+            raise SafeStop("Trusted syscall policy must deny unlisted calls")
+        return ["--security-opt", f"seccomp={path}"]
+
     async def command(self, *args: str, timeout=300, check=True) -> tuple[int, str]:
         process = await asyncio.create_subprocess_exec("docker", *args,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
@@ -75,6 +81,7 @@ class DockerRunner:
         started = time.monotonic()
         args = ["run", "--name", name, "--network", "none", "--memory", "1536m", "--cpus", "2",
                 "--pids-limit", "256", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
+                *self.syscall_policy(),
                 *self.mount(workspace / "backend", "/source", True), *self.mount(output, "/out"), self.image,
                 "sh", "-c", "cp -R /source/. /workspace/ && gradle --offline --no-daemon clean test bootJar; result=$?; cp -R build/test-results /out/ 2>/dev/null || true; cp build/libs/app.jar /out/app.jar 2>/dev/null || true; exit $result"]
         try:
@@ -129,6 +136,7 @@ class DockerRunner:
                 fixture_environment = ["-e", "SPRING_FLYWAY_BASELINE_ON_MIGRATE=true", "-e", "SPRING_FLYWAY_BASELINE_VERSION=1"]
             await self.command("run", "-d", "--name", db, "--network", network,
                 "--network-alias", "testdb", "--memory", "256m", "--cpus", "1", "--pids-limit", "128",
+                *self.syscall_policy(),
                 "-e", "POSTGRES_PASSWORD=isolated_test", "-e", "POSTGRES_DB=urls", *fixture_mounts, self.postgres_image, timeout=30)
             for _ in range(30):
                 code, _ = await self.command("exec", db, "pg_isready", "-U", "postgres", timeout=5, check=False)
@@ -139,13 +147,14 @@ class DockerRunner:
                 "--network-alias", "testapp", "--memory", "768m", "--cpus", "1", "--pids-limit", "128",
                 "--read-only", "--tmpfs", "/tmp:rw,noexec,nosuid,size=128m", "--cap-drop", "ALL",
                 "--security-opt", "no-new-privileges", *self.mount(jar, "/demo/app.jar", True),
+                *self.syscall_policy(),
                 "-e", "SPRING_DATASOURCE_URL=jdbc:postgresql://testdb:5432/urls",
                 "-e", "SPRING_DATASOURCE_USERNAME=postgres", "-e", "SPRING_DATASOURCE_PASSWORD=isolated_test",
                 "-e", f"SHORTENER_MAX_EXPIRY_DAYS={max_days}", "-e", f"SHORTENER_CREATION_LIMIT={rate_limit}",
                 *fixture_environment, self.runtime_image, "java", "-jar", "/demo/app.jar", timeout=30)
             _, output = await self.command("run", "--name", f"urlshortner-checks-{suffix}", "--network", network,
                 "--memory", "256m", "--cpus", "1", "--pids-limit", "64", "--read-only",
-                "--cap-drop", "ALL", "--security-opt", "no-new-privileges", self.acceptance_image,
+                "--cap-drop", "ALL", "--security-opt", "no-new-privileges", *self.syscall_policy(), self.acceptance_image,
                 "/checks/main.py", "http://testapp:8080", scenario, str(max_days), str(rate_limit), *(["upgrade"] if upgrade_fixture else []), timeout=100)
             result = json.loads(output.strip())
             if not result["passed"] and any(case["name"] == "isolated application starts" for case in result["cases"]):
@@ -173,6 +182,7 @@ class DockerRunner:
             "--network-alias", "demoapp", "--memory", "768m", "--cpus", "1", "--pids-limit", "128",
             "--read-only", "--tmpfs", "/tmp:rw,noexec,nosuid,size=128m", "--cap-drop", "ALL",
             "--security-opt", "no-new-privileges", *self.mount(jar, "/demo/app.jar", True),
+            *self.syscall_policy(),
             "-e", "SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/urls",
             "-e", "SPRING_DATASOURCE_USERNAME=url_app", "-e", "SPRING_DATASOURCE_PASSWORD=local_url_app",
             "-e", "SHORTENER_PUBLIC_BASE_URL=http://127.0.0.1:8000",
