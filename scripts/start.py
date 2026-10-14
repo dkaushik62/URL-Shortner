@@ -31,7 +31,7 @@ def main():
             raise SystemExit("Invalid recorded demo database")
         env["SHORTENER_DATABASE_NAME"] = database
         env.setdefault("SHORTENER_MAX_EXPIRY_DAYS", str(demo.get("max_expiry_days", 7)))
-    subprocess.run(["docker", "compose", "up", "-d", "postgres", "backend", "proxy"], check=True, cwd=ROOT, env=env)
+    subprocess.run(["docker", "compose", "up", "-d", "postgres", "business_postgres", "backend", "proxy"], check=True, cwd=ROOT, env=env)
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     for attempt in range(90):
         try:

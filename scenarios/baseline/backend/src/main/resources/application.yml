@@ -2,9 +2,9 @@ server:
   port: ${PORT:8080}
 spring:
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:55432/workbench}
-    username: ${SPRING_DATASOURCE_USERNAME:workbench}
-    password: ${SPRING_DATASOURCE_PASSWORD:local_workbench}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/urls}
+    username: ${SPRING_DATASOURCE_USERNAME:url_app}
+    password: ${SPRING_DATASOURCE_PASSWORD:local_url_app}
   flyway:
     locations: classpath:db/migration
 management:

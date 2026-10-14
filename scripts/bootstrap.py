@@ -26,7 +26,7 @@ def main():
     if not python_path().exists():
         venv.create(ROOT / ".venv", with_pip=True)
     run(str(python_path()), "-m", "pip", "install", "-r", "requirements.txt")
-    run("docker", "compose", "up", "-d", "postgres")
+    run("docker", "compose", "up", "-d", "postgres", "business_postgres")
     run("docker", "build", "-t", "urlshortner-java-runner:local", "-f", "infra/runner/Dockerfile", ".")
     run("docker", "build", "-t", "urlshortner-java-runtime:local", "-f", "infra/runtime/Dockerfile", ".")
     run("docker", "build", "-t", "urlshortner-acceptance:local", "-f", "infra/acceptance/Dockerfile", ".")

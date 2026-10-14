@@ -172,10 +172,10 @@ class DockerRunner:
         if not re.fullmatch(r"[0-9a-f]{32}", run_id) or not re.fullmatch(r"urls(?:_[0-9a-f]{32})?", base_database):
             raise SafeStop("Invalid business database identity")
         database = "urls_" + run_id
-        _, existing = await self.command("exec", "url-shortner-postgres-1", "psql", "-U", "workbench", "-d", "workbench", "-Atc", f"SELECT 1 FROM pg_database WHERE datname = '{database}'", timeout=20)
+        _, existing = await self.command("exec", "url-shortner-business_postgres-1", "psql", "-U", "business_admin", "-d", "business_admin", "-Atc", f"SELECT 1 FROM pg_database WHERE datname = '{database}'", timeout=20)
         if existing.strip() != "1":
             template = "" if scenario == "greenfield" else f" TEMPLATE {base_database}"
-            await self.command("exec", "url-shortner-postgres-1", "psql", "-U", "workbench", "-d", "workbench", "-v", "ON_ERROR_STOP=1", "-c", f"CREATE DATABASE {database}{template} OWNER url_app", timeout=60)
+            await self.command("exec", "url-shortner-business_postgres-1", "psql", "-U", "business_admin", "-d", "business_admin", "-v", "ON_ERROR_STOP=1", "-c", f"CREATE DATABASE {database}{template} OWNER url_app", timeout=60)
         return database
 
     async def promote(self, run_id: str, max_days=30, rate_limit=20, output_directory=None, scenario="ambiguous", base_database="urls", database_name=None):
@@ -191,7 +191,7 @@ class DockerRunner:
         if not re.fullmatch(r"urls(?:_[0-9a-f]{32})?", database_name):
             raise SafeStop("Invalid recorded demo database identity")
         await self.command("network", "create", "--internal", "urlshortner-demo-internal", timeout=20, check=False)
-        await self.command("network", "connect", "--alias", "postgres", "urlshortner-demo-internal", "url-shortner-postgres-1", timeout=20, check=False)
+        await self.command("network", "connect", "--alias", "postgres", "urlshortner-demo-internal", "url-shortner-business_postgres-1", timeout=20, check=False)
         await self.command("run", "-d", "--name", "urlshortner-demo", "--network", "urlshortner-demo-internal",
             "--network-alias", "demoapp", "--memory", "768m", "--cpus", "1", "--pids-limit", "128",
             "--read-only", "--tmpfs", "/tmp:rw,noexec,nosuid,size=128m", "--cap-drop", "ALL",

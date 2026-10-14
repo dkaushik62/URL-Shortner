@@ -48,6 +48,13 @@ def test_redaction():
     assert "sk-ant-example12345" not in scrub("key sk-ant-example12345")
 
 
+def test_model_field_rejects_credentials_and_endpoint_urls():
+    from pydantic import ValidationError
+    for model in ["sk-example-secret123", "https://foreign.example/model"]:
+        with pytest.raises(ValidationError):
+            RuntimeConfig(model=model)
+
+
 def test_cli_planning_metadata_is_allowed_and_host_tools_fail_closed():
     output = [{"type": "item.completed", "item": {"type": "todo_list", "items": []}},
               {"type": "item.completed", "item": {"type": "error", "message": "NONFATAL-PRIVATE-DIAGNOSTIC"}},

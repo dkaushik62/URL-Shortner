@@ -74,6 +74,9 @@ class ModelGateway:
         return [executable]
 
     async def preflight(self, config: RuntimeConfig, run_id: str | None = None):
+        key = self.secrets.get(run_id or "", "")
+        if key and key in config.model:
+            raise SafeStop("Keep credentials in the masked key field, never in the model identifier")
         if config.provider != "codex":
             if not self.allow_billed:
                 raise SafeStop("API-billed providers are disabled by the local operator")

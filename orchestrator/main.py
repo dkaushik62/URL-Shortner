@@ -218,7 +218,7 @@ def create_app(injected_engine=None):
         async with httpx.AsyncClient(timeout=15, follow_redirects=False, trust_env=False) as client:
             try:
                 reply = await client.request(request.method, "http://127.0.0.1:8080" + path,
-                    content=await request.body(), headers={"Content-Type": "application/json"})
+                    content=await request.body(), headers={"Content-Type": "application/json", "X-Workbench-Proxy": "local-control-plane"})
             except httpx.HTTPError:
                 return JSONResponse({"detail": "The Java service is unavailable. Start the demo service or approve a validated greenfield run."}, 503)
         headers = {key: value for key, value in reply.headers.items() if key.lower() in {"content-type", "location", "retry-after"}}

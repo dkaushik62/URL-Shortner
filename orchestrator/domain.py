@@ -45,6 +45,8 @@ class RuntimeConfig(StrictModel):
     @classmethod
     def valid_model(cls, value: str) -> str:
         import re
+        if value.startswith(("sk-", "https://", "http://")):
+            raise ValueError("Use a model identifier; keep keys in the masked credential field")
         if value and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]*", value):
             raise ValueError("Model must be a model identifier, not a URL or command")
         return value

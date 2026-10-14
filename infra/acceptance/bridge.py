@@ -16,6 +16,13 @@ class Bridge(BaseHTTPRequestHandler):
     def log_message(self, *args): pass
 
     def forward(self):
+        origin = self.headers.get("Origin")
+        if origin and origin not in {"http://127.0.0.1:8000", "http://localhost:8000"}:
+            self.send_error(403, "Local workbench origin required")
+            return
+        if self.command == "POST" and self.headers.get("X-Workbench-Proxy") != "local-control-plane":
+            self.send_error(403, "Use the session-protected workbench API")
+            return
         path = urlparse(self.path).path
         if not path.startswith(("/api/urls", "/r/", "/actuator/health")):
             self.send_error(404)
@@ -39,4 +46,5 @@ class Bridge(BaseHTTPRequestHandler):
             self.send_error(503, "Demo application unavailable")
 
 
-ThreadingHTTPServer(("0.0.0.0", 8080), Bridge).serve_forever()
+if __name__ == "__main__":
+    ThreadingHTTPServer(("0.0.0.0", 8080), Bridge).serve_forever()
