@@ -23,8 +23,10 @@ python scripts/start.py
 
 On macOS/Linux, use `python3` if `python` is unavailable. Open
 **http://127.0.0.1:8000**. The Java API is also available through a local proxy at
-http://127.0.0.1:8080. PostgreSQL binds only to 127.0.0.1:55432. These fixed ports
-and named containers support one local installation at a time.
+http://127.0.0.1:8080 for reads; use the session-protected port 8000 for mutations.
+Engineering PostgreSQL binds only to 127.0.0.1:55432. Business PostgreSQL is a
+separate container on the internal network, with no published port. These fixed
+ports and named containers support one local installation at a time.
 
 The submitted URL service, UI, automated tests and bundled evidence work without
 a model connection. **New live engineering runs need the operator's own model
@@ -85,6 +87,11 @@ distinguishes ChatGPT subscription access from API-key usage.
    unlimited redirects and an explicit single-instance limitation.
 
 Only one run may be active or waiting. Finish or stop it before another run.
+New live brownfield runs require a newly promoted greenfield source/database pair
+in this installation. Greenfield starts a fresh link collection; enhancements copy
+the appropriate existing database, retaining the previous demo for rollback. See
+[database promotion](docs/DATABASE_PROMOTION.md). Saved scenario evidence is
+immediately readable and does not require a new greenfield run.
 Parallel nodes can overlap inside that run. UI refresh/closure does not drive or
 erase execution. Runs and LangGraph checkpoints persist in PostgreSQL; after a
 worker restart, interrupted runs require **Resume**. Temporary API credentials

@@ -38,6 +38,10 @@ preventing adoption from overwriting unrelated edits.
 The trusted bridge has a fixed destination and forwards business requests only.
 Generated demo code stays on an internal Docker network; it has no external egress.
 The database role for URL data has no permission to access engineering data. A new
+business PostgreSQL container has its own internal network; generated code has no
+route to the engineering PostgreSQL container. New promotions retain separate
+business database revisions for fresh greenfield and copied enhancement baselines.
+See [database promotion](DATABASE_PROMOTION.md). A new
 test database and application are created per validation; they are cleaned up and
 their results/jar retained in immutable attempt directories.
 

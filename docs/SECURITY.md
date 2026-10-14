@@ -7,9 +7,10 @@
 | Source vs test authority | Protected HTTP checks reside in a separate trusted image; the model cannot edit them |
 | Generated code vs host | Docker source mount is read-only; compilation happens on an internal copy; no host credentials or Docker socket |
 | Network access | Build network disabled; candidate/demo applications use internal networks; browser access uses a fixed trusted bridge |
-| Business vs control data | Separate URL database/least-privilege role and engineering database |
+| Business vs control data | Separate PostgreSQL containers/networks; URL role has business access only; generated code cannot connect to engineering PostgreSQL |
 | Decision vs side effect | Approval interrupts, exact artifact/revision matching, promotion receipts |
-| Browser vs control APIs | Loopback bind/Host checks, exact local Origin validation, HttpOnly SameSite cookie, CSRF header for mutations |
+| Browser vs control APIs | Loopback bind/Host checks, exact local Origin validation, HttpOnly SameSite cookie, CSRF header for mutations; fixed bridge rejects foreign origins and requires the trusted proxy marker |
+| Kernel calls | Explicit reviewed Moby syscall policy, independent of daemon defaults; active kernel filter verified |
 | API keys vs persistence | Masked input, server memory only, no browser storage/graph checkpoint/log/artifact/test environment |
 | Subscription vs API billing | ChatGPT login checked, API env keys stripped from CLI, API adapters opt-in, no automatic provider fallback |
 

@@ -1,0 +1,17 @@
+{
+  "passed": true,
+  "checked_at": "2026-10-14T15:22:01.645808+00:00",
+  "checkout_revision": "6d89077",
+  "clone_source": "clean local Git clone of the pushed implementation branch",
+  "fresh_virtual_environment": true,
+  "existing_docker_download_cache": true,
+  "existing_database_volume_retained": true,
+  "model_cli_unavailable_in_server_path": true,
+  "billed_providers_enabled": false,
+  "model_attempt_rejected_before_execution": 400,
+  "bundled_records": 4,
+  "all_archive_event_chains_valid": true,
+  "historical_artifacts_read_without_workspaces": true,
+  "business_create_redirect_analytics": true,
+  "data_survived_database_container_recreation": true
+}

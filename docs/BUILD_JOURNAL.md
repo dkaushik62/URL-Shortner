@@ -45,6 +45,13 @@ validated expiry service. [2e471dd](https://github.com/dkaushik62/URL-Shortner/c
 adopts the clarified creation limiter. Fresh-checkout verification is recorded in
 the verification report. Failed attempts remain in the record.
 
+The later commits record reproducibility and security corrections found by real
+checks: runtime/build separation, explicit syscall filtering, plugin downloads,
+startup/cleanup timing, retained database revisions, network-separated engineering
+storage and bridge protection. They are platform verification changes; the archived
+agent runs are not presented as executing these later revisions. See
+[the verification report](../verification/REPORT.md) for final coverage and receipts.
+
 ## Interview route
 
 1. Read the five stage commits in order and the architecture diagram.

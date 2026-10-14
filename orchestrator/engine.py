@@ -165,7 +165,11 @@ class Engine:
         self.store.event(run["id"], "clarification_required", questions=questions, revision=run["revision"])
         answer = interrupt({"kind": "clarification", "questions": questions})
         self.check(state)
-        self.store.update(run["id"], lambda r: r.update(clarification=str(answer), pending=None, status="running"))
+        def resolved(r):
+            r.update(clarification=str(answer), pending=None, status="running")
+            if re.search(r"\b(?:7|30)\s+days?\b", str(answer)):
+                r["max_expiry_days"] = self.expiry_days(str(answer))
+        self.store.update(run["id"], resolved)
         self.begin(state, "clarification")
         self.finish(state, "clarification", {"answers": str(answer), "revision": run["revision"]})
         return {}
@@ -397,6 +401,10 @@ class Engine:
             self.gateway.forget(run_id)
             raise
         requirement = request.requirement.strip() or self.catalog[request.scenario]["requirement"]
+        maximum_days = self.expiry_days(requirement)
+        if request.scenario == "ambiguous":
+            demo_file = self.project / ".runtime/demo.json"
+            maximum_days = json.loads(demo_file.read_text()).get("max_expiry_days", 7) if demo_file.exists() else 7
         if re.search(r"\bsk-(?:ant-)?[A-Za-z0-9_-]{8,}", requirement) or (request.api_key and request.api_key.get_secret_value() in requirement):
             self.gateway.forget(run_id)
             raise PolicyError("Keep credentials in the masked key field, never in the requirement")
@@ -406,7 +414,7 @@ class Engine:
                "retries": 0, "rollbacks": 0, "active_seconds": 0, "pending": None,
                "nodes": {node: {"status": "pending"} for node in NODES}, "artifacts": {},
                "inject_fault": request.inject_fault, "fault_injected": False,
-               "max_expiry_days": self.expiry_days(requirement), "base_sha": self.workspaces.head(run_id), "last_validated_sha": None,
+               "max_expiry_days": maximum_days, "base_sha": self.workspaces.head(run_id), "last_validated_sha": None,
                "target_fingerprint": self.workspaces.directory_fingerprint(self.project / "backend")}
         self.store.save(run)
         self.store.event(run_id, "run_created", scenario=request.scenario, revision=1, requirement=requirement, config=run["config"], base_sha=run["base_sha"])

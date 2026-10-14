@@ -42,6 +42,14 @@ def main():
     code = "import socket; s=socket.socket(); s.settimeout(2); r=s.connect_ex(('1.1.1.1',443)); print(r); assert r != 0"
     probe = subprocess.run(["docker", "run", "--rm", "--network", network, "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--security-opt", f"seccomp={ROOT / 'infra/runner/seccomp.json'}", "--memory", "128m", "--cpus", "1", "--pids-limit", "32", "urlshortner-acceptance:local", "-c", code], capture_output=True, text=True)
     checks["external_connection_blocked"] = probe.returncode == 0
+    engineering = inspect("inspect", "url-shortner-postgres-1")
+    engineering_ip = next(iter(engineering["NetworkSettings"]["Networks"].values()))["IPAddress"]
+    import ipaddress
+    ipaddress.ip_address(engineering_ip)
+    checks["engineering_database_separate_network"] = not set(engineering["NetworkSettings"]["Networks"]).intersection(networks)
+    database_probe = f"import socket; s=socket.socket(); s.settimeout(2); r=s.connect_ex(('{engineering_ip}',5432)); assert r != 0"
+    blocked = subprocess.run(["docker", "run", "--rm", "--network", network, "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--security-opt", f"seccomp={ROOT / 'infra/runner/seccomp.json'}", "--memory", "128m", "--cpus", "1", "--pids-limit", "32", "urlshortner-acceptance:local", "-c", database_probe], capture_output=True, text=True)
+    checks["engineering_database_connection_blocked"] = blocked.returncode == 0
     report = {"passed": all(checks.values()), "checks": checks, "networks": networks, "outbound_probe_exit": probe.returncode}
     output = ROOT / "verification/isolation.json"
     output.parent.mkdir(exist_ok=True)

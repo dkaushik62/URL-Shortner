@@ -1,6 +1,7 @@
 {
   "passed": true,
   "checks": {
+    "explicit_syscall_policy": true,
     "read_only_root": true,
     "non_root_user": true,
     "memory_cpu_process_bounds": true,
@@ -10,7 +11,10 @@
     "no_docker_socket_or_host_auth_mount": true,
     "no_model_provider_credentials": true,
     "no_direct_published_app_ports": true,
-    "external_connection_blocked": true
+    "kernel_syscall_filter_active": true,
+    "external_connection_blocked": true,
+    "engineering_database_separate_network": true,
+    "engineering_database_connection_blocked": true
   },
   "networks": {
     "urlshortner-demo-internal": true
