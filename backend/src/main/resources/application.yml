@@ -1,0 +1,18 @@
+server:
+  port: ${PORT:8080}
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:55432/workbench}
+    username: ${SPRING_DATASOURCE_USERNAME:workbench}
+    password: ${SPRING_DATASOURCE_PASSWORD:local_workbench}
+  flyway:
+    locations: classpath:db/migration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+shortener:
+  public-base-url: ${SHORTENER_PUBLIC_BASE_URL:http://127.0.0.1:8000}
+  max-expiry-days: ${SHORTENER_MAX_EXPIRY_DAYS:30}
+  creation-limit-per-minute: ${SHORTENER_CREATION_LIMIT:20}
