@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "archived_runs": 6,
+  "successful_runs": 5,
+  "event_chains_and_run_checksums_valid": true,
+  "proof_files": 69,
+  "local_document_links_valid": true,
+  "negative_fixture_checks": [
+    "archive_checksum_tampering_rejected",
+    "event_tampering_rejected_even_after_file_checksum_update",
+    "proof_file_tampering_rejected"
+  ],
+  "no_model_or_database_access": true
+}

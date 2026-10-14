@@ -4,6 +4,11 @@ A local Java URL shortener and a governed Python engineering system that builds,
 tests and evolves it. The React workbench observes the real workflow, exposes its
 artifacts and pauses for decisions. Shortening a URL does **not** invoke an agent.
 
+**Submission:** start with [the reviewer route](docs/SUBMISSION.md),
+[short answers to every assignment section](docs/ASSIGNMENT_ANSWERS.md), and
+[final verification/proofs](verification/FINAL_REPORT.md). Six real run exports
+are included: five succeeded, and one unsuccessful greenfield run is retained.
+
 ## Start here
 
 Prerequisites: **Git, Python 3.12+, and Docker Desktop/Engine with Compose v2**.
@@ -43,6 +48,9 @@ creation limit of **20 requests/minute**, configurable with
 greenfield baseline has neither enhancement, so the brownfield exercise still
 starts from the original service. See [scenario summaries](docs/SCENARIO_SUMMARIES.md)
 and [verification evidence](verification/REPORT.md).
+The later accepted enhancement adds stable error codes, centralized exception
+handling, server-generated request IDs and configurable safe logging; see
+[the API/error catalogue](backend/docs/http-behavior.md).
 
 ### Default live model connection: existing ChatGPT access
 
@@ -204,6 +212,7 @@ demonstration can promote an explicitly configured seven-day revision.
 
 ```text
 python scripts/verify.py
+python scripts/verify_submission.py
 python scripts/stop.py
 ```
 
@@ -211,6 +220,8 @@ Verification runs Python governance/security tests, frontend typecheck/build,
 Java tests and independent HTTP checks against an isolated PostgreSQL database.
 It does not invoke a model or enable billing. Stop the workbench terminal with
 Ctrl+C. Container shutdown preserves the PostgreSQL volume.
+The submission verifier checks archived run checksums/event chains and attached
+proof files; it works without Docker, a database or model access.
 
 For an intentional full reset of this assignment's database, stop the workbench
 and run `docker compose down --volumes`. This deletes local links, run records and

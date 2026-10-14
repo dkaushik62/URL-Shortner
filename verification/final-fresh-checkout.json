@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "checked_at": "2026-10-14T20:31:29.571242+00:00",
+  "checkout_revision": "0c89389f459e1e0fd960c4fed99f1c5096c10a81",
+  "clean_local_git_clone": true,
+  "fresh_virtual_environment": true,
+  "locked_dependencies_installed": true,
+  "frontend_built_in_docker": true,
+  "separate_engineering_database": true,
+  "loopback_smoke_port": 18001,
+  "existing_docker_cache_and_business_demo_used": true,
+  "model_cli_unavailable_in_server_path": true,
+  "billed_providers_enabled": false,
+  "live_history_empty": true,
+  "bundled_records": 6,
+  "all_archive_event_chains_valid": true,
+  "historical_artifacts_read_without_runtime_workspaces": true,
+  "business_create_redirect_analytics": true,
+  "missing_model_request_rejected_before_execution": 400
+}

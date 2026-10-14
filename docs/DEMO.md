@@ -17,6 +17,12 @@
    and the missing promotion. Show restart recovery and bounded infrastructure retry.
 7. **Defend decisions:** architecture, protected checks, no model secrets in generated-code
    environments, no cloud billing, measured metrics, and gaps needed for a production service.
+8. **General enhancement:** inspect the sixth saved run for error codes, central exception
+   handling and logging. Show the timeout, checkpoint retry, compile repair, 107 Java tests,
+   39 HTTP cases and separate PR/local promotion approvals. PR #5 is merged.
+
+For a concise answer to each evaluation section, use [ASSIGNMENT_ANSWERS.md](ASSIGNMENT_ANSWERS.md).
+All six records and screenshot/test receipts are indexed in [the submission route](SUBMISSION.md).
 
 Model generation is variable and subject to the operator's included usage. Keep the
 recorded evidence available when a live run is slow or unavailable. Never present saved

@@ -47,6 +47,6 @@ The MVC advice owns controller exception handling. The correlation filter handle
 
 ## Verification
 
-Automated tests: no trusted results for this enhancement were supplied. Python tests, frontend typecheck/build, and Java tests were not executed by this stage.
+The implementation-stage text was authored before trusted validation. Completed enhancement run `9ed4825c0fbe47acafdd6a1cb5559c35` subsequently passed 107 Java tests and 39 protected HTTP checks at source `962d86831a17d81fc7cd19c949316cac99407720`, including a populated V1 upgrade. It passed review, created PR #5 after approval, and was promoted locally after a separate approval. The PR is merged.
 
-Live runs: PostgreSQL and independent HTTP acceptance were not executed by this stage. Mocked and servlet fixture tests do not establish live behavior. Run generated code only through the trusted Docker runner and record actual results separately. Existing migrations and protected acceptance checks remain unchanged.
+The [full live-run export](../../verification/live-runs/enhancement-9ed4825c0fbe47acafdd6a1cb5559c35.json) preserves the original stage inputs, decisions and results. [Final verification](../../verification/FINAL_REPORT.md) records subsequent model-free checks. Mocked servlet/error fixtures do not establish every live error-dispatch path or production log-collection behavior. Existing migrations and protected acceptance checks remain unchanged.
