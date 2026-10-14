@@ -48,5 +48,10 @@
     "WARN": true
   },
   "no_live_500_dispatch_claim": true,
-  "no_model_call": true
+  "no_model_call": true,
+  "screenshot_link": {
+    "code": "FhCkyr8b",
+    "destination": "https://example.com/submission-proof-final",
+    "successful_redirects": 1
+  }
 }

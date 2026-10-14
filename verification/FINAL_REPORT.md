@@ -1,6 +1,6 @@
 # Final submission verification - 15 October 2026
 
-The submitted application includes the merged error/exception/logging enhancement from PR #5. The six real executions are preserved in [live-runs](live-runs/) and the [checksum manifest](manifest.json). Five succeeded and one stopped safely. No new model calls, paid-provider calls or cloud deployment were needed to prepare this submission pack.
+The submitted application includes the merged error/exception/logging enhancement from PR #5. The six real executions are preserved in [live-runs](live-runs/) and the [checksum manifest](manifest.json). Five succeeded and one stopped safely. No new Workbench model calls, paid-provider calls or cloud deployment were needed to prepare this submission pack.
 
 ## Final checks
 
@@ -16,7 +16,7 @@ The submitted application includes the merged error/exception/logging enhancemen
 | Browser and business APIs | Connected six-run history, archived artifacts, latest test results, real URL creation/redirect/analytics, error envelope and compact layout checked. [Receipt](final-browser-api.json), [screenshots](SCREENSHOTS.md). |
 | Clean checkout without model access | A clean clone and separate virtual environment/engineering database inspected all six archives and business APIs with no Codex in the server PATH. No account tokens were copied. [Receipt](final-fresh-checkout.json). Existing Docker download caches and the running business demo were used. |
 | Repository delivery | Private repository; PRs #1-5 merged. Documentation-only PR #2 and logging PR #5 were created by the governed workflow. [GitHub receipts](final-github.json). |
-| Submission portability/integrity | Standard-library [submission verifier](../scripts/verify_submission.py) checks every run and attached proof, plus local documentation links. [Proof manifest](submission-manifest.json). |
+| Submission portability/integrity | Standard-library [submission verifier](../scripts/verify_submission.py) checks all six runs, 69 attached files and local document links. Deliberately corrupted archive/chain/proof fixtures are rejected. [Proof manifest](submission-manifest.json), [integrity receipt](submission-integrity.json). |
 
 These are measured checks of the final submitted code/evidence. State-machine and optional-provider tests use labelled doubles; they do not count as live agent runs. Historical runs retain the controls and evidence available when they executed, as described in the earlier reports.
 
@@ -42,8 +42,8 @@ This is a six-run demonstration sample, not a production reliability estimate. [
 - **Success:** 5 / 6 terminal runs = 83.33%. Stops and unsuccessful runs stay in the denominator.
 - **Retries:** 6 recorded model/explicit checkpoint retries, including the timeout retry. Source repairs are separate events and are not added again.
 - **Rollback:** 7 recorded checkpoint rollbacks across six runs; 1.17 events per run. This is not a business-data deletion count.
-- **Recovery / MTTR proxy:** 660.994 seconds (11m 1s), averaged over four runs with a recorded first failed validation followed by passing validation. Operator/recovery waits can be included. A model timeout alone does not start this validation-recovery clock; no sample is reported as unavailable.
-- **End-to-end latency:** creation-to-completion wall duration, including approval and recovery waits. Per-run values are above; the latest run took 71m 11s wall time but only 17m 35s active execution, including its earlier timed-out attempt.
+- **Recovery / MTTR proxy:** 660.994 seconds (11m 1s), averaged over four runs with a recorded first failed validation followed by passing validation. Operator/recovery waits can be included. A model timeout alone does not start this validation-recovery clock. Runs without a recovery sample are unavailable, not zero.
+- **End-to-end latency:** creation-to-completion wall duration, including approval and recovery waits. Mean across all six terminal runs: 1756.974 seconds (29m 17s). Per-run values are above; the latest run took 71m 11s wall time but only 17m 35s active execution, including its earlier timed-out attempt.
 - **Active execution:** worker-accounted time retained across repairs/retries/revisions. Approval/clarification waits pause it. The default 30-minute ceiling is a bounded-demo policy, not a guarantee of completing arbitrary repository-wide work.
 
 ## What is proven and what remains limited

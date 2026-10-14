@@ -5,6 +5,7 @@ Screenshots are observations of actual persisted runs. Saved runs are read-only 
 | View | Screenshot | Supporting record |
 |---|---|---|
 | Six runs and measured reliability metrics | [Final history](screenshots/final/history-six-runs.jpg) | [Metrics/run index](final-run-summary.json) |
+| All six bundled archive rows | [Archive heading](screenshots/final/archive-six-runs.jpg), [complete row list](screenshots/final/archive-six-runs-bottom.jpg) | [Six checksummed exports](manifest.json) |
 | Successful greenfield | [Greenfield](screenshots/final/greenfield-success.jpg) | [Full export](live-runs/greenfield-fcc92f3051df4ef19b8dfc875295e94e.json) |
 | Safely stopped greenfield | [Failed attempt](screenshots/final/greenfield-stopped.jpg) | [Full export](live-runs/greenfield-cef8b2f4cbd741be838fc8d6f42f6218.json) |
 | Brownfield expiry and revised requirement | [Brownfield](screenshots/final/brownfield-expiry.jpg) | [Revision/fault/approval lineage](live-runs/brownfield-9915f2f65342408082cafb6012145005.json) |
@@ -16,4 +17,4 @@ Screenshots are observations of actual persisted runs. Saved runs are read-only 
 | Compact viewport | [Mobile history](screenshots/final/mobile-six-runs.jpg) | [Browser/API receipt](final-browser-api.json); device emulation, not a physical phone |
 | Model timeout recovery | [Resumed call](screenshots/timeout-recovery-chrome.png) | [Timeout report](TIMEOUT_RECOVERY.md), complete timeout/repair events in the logging export |
 
-Earlier screenshots under this directory remain historical observations. Final captures supplement them; they do not alter earlier run events or approvals. Fresh test, isolation and clean-checkout receipts are linked in [FINAL_REPORT.md](FINAL_REPORT.md).
+Earlier screenshots under this directory remain historical observations. Final captures supplement them; they do not alter earlier run events or approvals. Archived PR panels display the original creation receipt; [current GitHub receipts](final-github.json) establish the merged status. Fresh test, isolation and clean-checkout receipts are linked in [FINAL_REPORT.md](FINAL_REPORT.md).

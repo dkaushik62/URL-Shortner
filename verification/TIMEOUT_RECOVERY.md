@@ -2,6 +2,8 @@
 
 Captured on Windows on 2026-10-15. This is a platform change; the operator's
 generated Java enhancement has its own run and approval gates.
+That enhancement subsequently succeeded, created merged PR #5 and promoted locally;
+its complete sixth run record and final checks are in [FINAL_REPORT.md](FINAL_REPORT.md).
 
 ## Observed failure
 
