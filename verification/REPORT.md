@@ -2,7 +2,8 @@
 
 This report covers the original four assignment runs. Subsequent current-project
 enhancement/PR delivery has a [separate verification report](ENHANCEMENT_REPORT.md);
-the repository now preserves five real run exports.
+the repository now preserves five real run exports. The later model timeout and
+checkpoint recovery change has [separate verification evidence](TIMEOUT_RECOVERY.md).
 
 Evidence captured on Windows on 2026-10-14. No cloud deployment, billed provider,
 or evaluator credentials were used. Run archives distinguish model output, executed

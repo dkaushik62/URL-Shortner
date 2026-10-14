@@ -34,8 +34,8 @@ access.** Your credentials and the author's account tokens are never distributed
 
 For the development stages, start with [the build journal](docs/BUILD_JOURNAL.md)
 and the repository's commit history. The original implementation was merged
-through PR #1, retaining its stage commits. While the enhancement workflow PR is
-under review, switch to `codex/enhancement-pr-workflow` to try the newest Workbench.
+through PR #1, retaining its stage commits. PRs #2 and #3 added verified enhancement
+evidence and the governed GitHub delivery workflow to the default branch.
 
 The submitted service includes expiration capped at **7 days** and a shared local
 creation limit of **20 requests/minute**, configurable with
@@ -134,7 +134,7 @@ immediately readable and does not require a new greenfield run.
 Parallel nodes can overlap inside that run. UI refresh/closure does not drive or
 erase execution. Runs and LangGraph checkpoints persist in PostgreSQL; after a
 worker restart, interrupted runs require **Resume**. Temporary API credentials
-must be supplied again. Infrastructure-only retries preserve consumed budgets.
+must be supplied again. Checkpoint retries preserve consumed budgets.
 
 The optional command-line driver is intended for controlled demonstrations:
 
@@ -154,6 +154,18 @@ Other options: `--fault`, `--revise-seven-days`, `--run-id EXISTING_ID`.
 
 Choose the provider, model identifier and bounded run limits in the workbench.
 Changes to an existing run apply only at a checkpoint and enter its journal.
+The model response limit defaults to **15 minutes per call** and can be set between
+30 seconds and 30 minutes under **Execution limits & fault exercise**. The separate
+30-minute active-run budget includes earlier attempts; a longer call limit cannot
+extend it. While a response is pending, the UI shows elapsed time and receives
+persisted activity updates every 15 seconds. These report worker activity, not
+provider token progress or a completion estimate.
+
+A Codex response timeout stops safely. Use **Retry from the saved checkpoint**,
+choose **Model response limit (minutes)** and click **Retry this run**. This retains
+the approved plan and consumed budgets and retries the unfinished stage. At most
+two explicit timeout retries are allowed; rejected approvals and exhausted budgets
+remain stopped. A timeout or stop also terminates the owned Codex process tree.
 Model keys belong only in the masked key field. Do not paste credentials into
 requirements. There is no key storage in browser storage, run records, checkpoints,
 generated artifacts or build/test environments.
@@ -180,7 +192,7 @@ database settings; the startup script does not automatically load dotenv files.
 | `/engineering/runs/{id}/approval` | Decision bound to revision, approval ID and artifact hash |
 | `/engineering/runs/{id}/clarification` | Answer an unresolved requirement at its current revision |
 | `/engineering/runs/{id}/requirements` | Revise a paused requirement and invalidate downstream work |
-| `/engineering/runs/{id}/stop`, `/resume`, `/retry` | Safe-stop, restart recovery, bounded infrastructure retry |
+| `/engineering/runs/{id}/stop`, `/resume`, `/retry` | Safe-stop, restart recovery, bounded infrastructure/model-timeout retry |
 | `/engineering/runs/{id}/artifacts/{stage}` | Download a recorded artifact |
 | `/engineering/metrics` | Success rate, retry/rollback totals and measured recovery time |
 
@@ -215,6 +227,9 @@ Git. Saved evidence under `verification` remains separate historical evidence.
   retry the stopped infrastructure run. Agents cannot change dependencies to fix it.
 - **Run stops:** inspect its recorded reason and test evidence. Source repair is
   bounded; rejected decisions and exhausted budgets cannot be bypassed with Resume.
+- **Codex response timeout:** increase the response limit in the checkpoint retry
+  panel. Completed planning and approvals remain recorded. The active-run budget
+  still includes the timed-out attempt. See [timeout recovery evidence](verification/TIMEOUT_RECOVERY.md).
 - **Java unavailable:** wait for its health check, inspect `docker compose logs backend`,
   or inspect the `urlshortner-demo` container after a promoted live run.
 - **Native frontend tool errors:** use Docker bootstrap rather than an old host Node.

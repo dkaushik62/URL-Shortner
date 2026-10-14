@@ -34,7 +34,7 @@ class StrictModel(BaseModel):
 class Limits(StrictModel):
     max_model_calls: int = Field(default=24, ge=1, le=24)
     active_minutes: int = Field(default=30, ge=1, le=30)
-    call_timeout_seconds: int = Field(default=240, ge=30, le=300)
+    call_timeout_seconds: int = Field(default=900, ge=30, le=1800)
     max_repair_cycles: int = Field(default=2, ge=0, le=2)
 
 

@@ -12,7 +12,7 @@ import { UrlShortener } from './UrlShortener';
 
 
 
-const defaults: RuntimeConfig = { provider: 'codex', model: '', limits: { max_model_calls: 24, active_minutes: 30, call_timeout_seconds: 240, max_repair_cycles: 2 } };
+const defaults: RuntimeConfig = { provider: 'codex', model: '', limits: { max_model_calls: 24, active_minutes: 30, call_timeout_seconds: 900, max_repair_cycles: 2 } };
 
 const terminal = new Set(['succeeded', 'failed', 'stopped']);
 
@@ -67,6 +67,7 @@ export default function App() {
   const [answers, setAnswers] = useState('');
 
   const [revisionText, setRevisionText] = useState('');
+  const [retryTimeout, setRetryTimeout] = useState(900);
 
   const [connected, setConnected] = useState(false);
 
@@ -142,7 +143,7 @@ export default function App() {
 
       cursor.current = event.seq;
 
-      setEvents(previous => [...previous.slice(-79), event]);
+      if (event.kind !== 'run_activity') setEvents(previous => [...previous.slice(-79), event]);
 
       if (timer) clearTimeout(timer);
 
@@ -198,7 +199,7 @@ export default function App() {
 
       const bundle = await api<EvidenceBundle>(`/engineering/evidence/${name}`);
 
-      setRunId(null); setArchiveName(name); setRun(bundle.run); setEvents(bundle.events); setConnected(false); setTab('workbench');
+      setRunId(null); setArchiveName(name); setRun(bundle.run); setEvents(bundle.events.filter(event => event.kind !== 'run_activity')); setConnected(false); setTab('workbench');
 
     } catch (err) { setError(err instanceof Error ? err.message : 'Could not read saved evidence'); }
 
@@ -211,6 +212,7 @@ export default function App() {
   const pending = archiveName ? null : run?.pending;
 
   const nodeArtifact = run?.artifacts[selectedNode];
+  const waitingModels = Object.entries(run?.nodes ?? {}).filter(([, node]) => node.status === 'running' && node.waiting_for_model);
   const pullRequest = run?.artifacts.github_delivery;
 
   const tests = run?.artifacts.tests;
@@ -272,7 +274,7 @@ export default function App() {
 
               {config.provider !== 'codex' ? <><div className="notice warning">This provider bills API usage to the key owner. Keys are held in server memory for this run and cleared at completion.</div><label>Provider API key<input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} autoComplete="off" required /></label></> : null}
 
-              <div className="config-footer"><span><LockIcon />No automatic paid fallback</span><details><summary>Execution limits & fault exercise</summary><div className="limits-grid">{([['max_model_calls', 'Maximum model calls', 1, 24], ['active_minutes', 'Active minutes', 1, 30], ['call_timeout_seconds', 'Call timeout (seconds)', 30, 300], ['max_repair_cycles', 'Repair cycles', 0, 2]] as const).map(([key, title, min, max]) => <label key={key}>{title}<input type="number" min={min} max={max} value={config.limits[key]} onChange={e => setConfig({ ...config, limits: { ...config.limits, [key]: Number(e.target.value) } })} /></label>)}</div><label className="checkbox"><input type="checkbox" checked={fault} onChange={e => setFault(e.target.checked)} />Inject a labelled redirect source fault to exercise repair</label></details></div>
+              <div className="config-footer"><span><LockIcon />No automatic paid fallback</span><details><summary>Execution limits & fault exercise</summary><div className="limits-grid">{([['max_model_calls', 'Maximum model calls', 1, 24], ['active_minutes', 'Active minutes', 1, 30], ['call_timeout_seconds', 'Model call timeout (seconds)', 30, 1800], ['max_repair_cycles', 'Repair cycles', 0, 2]] as const).map(([key, title, min, max]) => <label key={key}>{title}<input type="number" min={min} max={max} value={config.limits[key]} onChange={e => setConfig({ ...config, limits: { ...config.limits, [key]: Number(e.target.value) } })} /></label>)}</div><label className="checkbox"><input type="checkbox" checked={fault} onChange={e => setFault(e.target.checked)} />Inject a labelled redirect source fault to exercise repair</label></details></div>
 
               {active ? <p className="footnote">One run is already active or waiting. Finish or stop it before starting another.</p> : null}
 
@@ -285,9 +287,10 @@ export default function App() {
           {archiveName ? <div className="notice warning"><FileText size={17} />Recorded demonstration · read-only evidence from the author’s local run. <a href={`/engineering/evidence/${archiveName}`}>Download full record</a></div> : null}
 
           {run?.stop_reason ? <div className="notice warning"><ShieldCheck size={17} />{run.stop_reason}</div> : null}
+          {run?.status === 'running' && waitingModels.length ? <div className="notice warning" role="status"><Clock3 size={17} /><div>Waiting for model output{waitingModels.map(([name, node]) => <p key={name}>{titles[name]} · {duration(node.model_started_at && run.observed_at ? Math.max(0, (Date.parse(run.observed_at) - Date.parse(node.model_started_at)) / 1000) : 0)} elapsed · response limit {duration(node.call_timeout_seconds)}</p>)}<p>Activity updates every 15 seconds. Total active execution remains limited to {run.config.limits.active_minutes} minutes.</p></div></div> : null}
           {pullRequest?.url && /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+$/.test(pullRequest.url) ? <section className="card pr-result"><div><span className="eyebrow">GITHUB DELIVERY</span><h3>Draft PR ready</h3><p>{pullRequest.repository} · base {pullRequest.base_branch} · revision {run?.revision}</p><a href={pullRequest.url} target="_blank" rel="noopener noreferrer">Open pull request #{pullRequest.number}<ArrowRight size={14} /></a></div><p className="footnote">The PR contains the changes and recorded test evidence. Merge it in GitHub when ready.</p></section> : null}
 
-          {!archiveName && run?.status === 'stopped' && run.platform_failure ? <button className="secondary" disabled={busy} onClick={() => action(`/engineering/runs/${run.id}/retry`, { ...(apiKey ? { api_key: apiKey } : {}) })}><RotateCcw size={14} />Retry after infrastructure repair · retain budgets</button> : null}
+          {!archiveName && run?.status === 'stopped' && run.retryable ? <section className="card retry-card"><h3>Retry from the saved checkpoint</h3><p>Planning and approvals are retained. Used model calls and execution time still count toward this run’s limits.</p><label htmlFor="retry-timeout">Model response limit (minutes)<input id="retry-timeout" type="number" min={0.5} max={30} step={0.5} value={retryTimeout / 60} onChange={e => setRetryTimeout(Math.round(Number(e.target.value) * 60))} /></label><button className="primary" disabled={busy || retryTimeout < 30 || retryTimeout > 1800} onClick={() => { action(`/engineering/runs/${run.id}/retry`, { config: { ...run.config, limits: { ...run.config.limits, call_timeout_seconds: retryTimeout } }, ...(apiKey ? { api_key: apiKey } : {}) }); setApiKey(''); }}><RotateCcw size={14} />Retry this run</button></section> : null}
 
           {pending?.kind === 'clarification' ? <section className="card checkpoint"><div className="checkpoint-icon"><FileText size={21} /></div><div><span className="eyebrow">HUMAN CHECKPOINT</span><h3>Resolve the requirement</h3>{pending.questions?.map(question => <p key={question.id}>{question.text}</p>)}<label htmlFor="clarification">Your acceptance criteria</label><textarea id="clarification" value={answers} onChange={e => setAnswers(e.target.value)} /><button className="primary" disabled={busy} onClick={() => action(`/engineering/runs/${run!.id}/clarification`, { expected_revision: run!.revision, answers })}>Submit clarification<ArrowRight size={15} /></button></div></section> : null}
 
