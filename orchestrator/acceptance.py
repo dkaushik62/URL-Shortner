@@ -41,7 +41,7 @@ async def acceptance(base: str, scenario: str, max_days: int = 30, rate_limit: i
         for label, url in [("invalid scheme", "javascript:alert(1)"), ("embedded credentials", "https://user:password@example.com"), ("control characters", "https://example.com/\r\nLocation:evil"), ("missing host", "https:///missing")]:
             bad = await client.post("/api/urls", json={"url": url})
             check(label + " rejected", bad.status_code == 400, bad.status_code)
-        if scenario == "brownfield":
+        if scenario in {"brownfield", "enhancement"}:
             now = datetime.now(timezone.utc)
             invalid = await client.post("/api/urls", json={"url": "https://example.com", "expiresAt": (now + timedelta(days=max_days + 1)).isoformat()})
             check("expiry maximum enforced", invalid.status_code == 400, invalid.status_code)
@@ -56,7 +56,7 @@ async def acceptance(base: str, scenario: str, max_days: int = 30, rate_limit: i
                 expiry_count = await client.get(f"/api/urls/{expiry_code}/analytics")
                 check("expired link returns 410", expired.status_code == 410, expired.status_code)
                 check("expired visits do not count", expiry_count.json().get("clickCount") == 0)
-        if scenario == "ambiguous":
+        if scenario in {"ambiguous", "enhancement"}:
             # All requests are from the same local client. Prior successful creation
             # counts; requests must eventually hit the configured limit.
             responses = [await client.post("/api/urls", json={"url": f"https://example.com/rate/{i}"}) for i in range(rate_limit + 2)]

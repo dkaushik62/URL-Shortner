@@ -41,7 +41,7 @@ class Workspaces:
         if path.exists():
             return
         source = self.project / "scenarios" / ("starter" if scenario == "greenfield" else "baseline") / "backend"
-        if scenario == "ambiguous" and (self.project / "backend").exists():
+        if scenario in {"ambiguous", "enhancement"} and (self.project / "backend").exists():
             source = self.project / "backend"
         if not source.exists():
             raise PolicyError("Run and approve the greenfield scenario before creating enhancement runs")

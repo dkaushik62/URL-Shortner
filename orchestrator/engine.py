@@ -15,7 +15,8 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command, interrupt
 
 from orchestrator.domain import NODES, TERMINAL, WAITING, AgentOutput, PolicyError, RunRequest, RuntimeConfig, SafeStop, utcnow
-from orchestrator.models import ModelGateway, scrub
+from orchestrator.models import ModelGateway, credential_like, scrub
+from orchestrator.github_delivery import GitHubDelivery
 from orchestrator.runner import DockerRunner
 from orchestrator.store import Store, canonical
 from orchestrator.workspaces import Workspaces
@@ -26,6 +27,7 @@ class GraphState(TypedDict, total=False):
     revision: int
     needs_clarification: bool
     review_passed: bool
+    promote_locally: bool
 
 
 class Engine:
@@ -35,6 +37,7 @@ class Engine:
         self.gateway = gateway
         self.runner = runner
         self.workspaces = Workspaces(project, project / ".runtime" / "runs")
+        self.delivery = GitHubDelivery(project)
         self.tasks: dict[str, asyncio.Task] = {}
         self.segment_started: dict[str, float] = {}
         self.creation_lock = asyncio.Lock()
@@ -56,7 +59,9 @@ class Engine:
         graph.add_edge("implementation", "documentation")
         graph.add_edge(["tests", "documentation"], "review")
         graph.add_conditional_edges("review", lambda s: "release_approval" if s["review_passed"] else "implementation")
-        graph.add_edge("release_approval", "promotion")
+        graph.add_conditional_edges("release_approval", lambda s: "github_delivery" if self.store.get(s["run_id"])["scenario"] == "enhancement" else "promotion")
+        graph.add_edge("github_delivery", "local_release_approval")
+        graph.add_conditional_edges("local_release_approval", lambda s: "promotion" if s["promote_locally"] else "summary")
         graph.add_edge("promotion", "summary")
         graph.add_edge("summary", END)
         return graph.compile(checkpointer=saver)
@@ -97,6 +102,7 @@ class Engine:
         context = {"requirement": run["requirement"], "scenario": run["scenario"],
                    "revision": run["revision"], "clarification": run.get("clarification"),
                    "max_expiry_days": run["max_expiry_days"], "creation_limit_per_minute": 20,
+                   "preserve_existing_behavior": run["scenario"] == "enhancement",
                    "upstream": {key: {field: value[field] for field in ["revision", "source_sha", "output"] if field in value}
                                 for key, value in run["artifacts"].items() if key in {"requirements", "plan", "architecture", "test_design"}}}
         if stage in {"implementation", "architecture", "test_design", "review", "documentation"}:
@@ -160,14 +166,14 @@ class Engine:
             self.finish(state, "clarification", {"answers": run["clarification"], "revision": run["revision"]})
             return {}
         output = run["artifacts"]["requirements"]["output"]
-        questions = output["questions"] or [{"id": "reliability", "text": "What workload and limits should be supported? For the local demo we propose creation rate limiting at 20 requests/minute/client, 429 plus Retry-After, and unchanged redirects. Distributed scaling and an availability SLA are outside this local prototype.", "options": ["Accept the local rate-limiting scope", "Provide different measurable criteria"]}]
+        questions = output["questions"] or ([{"id": "scope", "text": "What measurable behavior and acceptance criteria should this enhancement provide?", "options": []}] if run["scenario"] == "enhancement" else [{"id": "reliability", "text": "What workload and limits should be supported? For the local demo we propose creation rate limiting at 20 requests/minute/client, 429 plus Retry-After, and unchanged redirects. Distributed scaling and an availability SLA are outside this local prototype.", "options": ["Accept the local rate-limiting scope", "Provide different measurable criteria"]}])
         self.store.update(run["id"], lambda r: r.update(status="awaiting_clarification", pending={"kind": "clarification", "questions": questions, "revision": run["revision"]}))
         self.store.event(run["id"], "clarification_required", questions=questions, revision=run["revision"])
         answer = interrupt({"kind": "clarification", "questions": questions})
         self.check(state)
         def resolved(r):
             r.update(clarification=str(answer), pending=None, status="running")
-            if re.search(r"\b(?:7|30)\s+days?\b", str(answer)):
+            if r["scenario"] != "enhancement" and re.search(r"\b(?:7|30)\s+days?\b", str(answer)):
                 r["max_expiry_days"] = self.expiry_days(str(answer))
         self.store.update(run["id"], resolved)
         self.begin(state, "clarification")
@@ -175,7 +181,7 @@ class Engine:
         return {}
 
     async def plan(self, state):
-        output = await self.agent_stage(state, "plan", {"instructions": "Return a concrete dependency DAG in tasks, with unique IDs, valid dependency references and measurable acceptance criteria. The target is only the Java URL service; you cannot change the platform. If this is the ambiguous scenario, implement the clarified local creation-rate-limiting scope using shortener.creation-limit-per-minute, default 20, 429 and Retry-After; do not claim distributed scaling."})
+        output = await self.agent_stage(state, "plan", {"instructions": "Return a concrete dependency DAG in tasks, with unique IDs, valid dependency references and measurable acceptance criteria. The target is only the Java URL service; you cannot change the platform. For enhancement, implement the operator's requirement against the supplied current source; preserve the existing API, configured expiry and rate limiting, data and migrations. Do not invent expiration or scaling work unrelated to this enhancement. If this is the ambiguous scenario, implement the clarified local creation-rate-limiting scope using shortener.creation-limit-per-minute, default 20, 429 and Retry-After; do not claim distributed scaling."})
         self.validate_tasks(output)
         return {}
 
@@ -216,13 +222,16 @@ class Engine:
             digest = hashlib.sha256(canonical({"revision": run["revision"], "sha": self.workspaces.head(run["id"]), "artifacts": run["artifacts"]}).encode()).hexdigest()
             pending = {"kind": kind, "approval_id": uuid.uuid4().hex, "artifact_hash": digest,
                        "revision": run["revision"], "source_sha": self.workspaces.head(run["id"]),
-                       "reason": "Review additive schema/security changes before sandbox implementation" if kind == "change" else "Review the exact validated source, test evidence and local service promotion"}
+                       "reason": {"change": "Review the proposed Java changes before sandbox implementation",
+                                  "github": "Review the exact source, passing tests and engineering review before pushing a branch and creating a private GitHub draft PR",
+                                  "optional_promotion": "The draft PR is ready. Approve to update the local demo, or finish this run without changing the running application",
+                                  "promotion": "Review the exact validated source, test evidence and local service promotion"}[kind]}
             self.store.update(run["id"], lambda r: r.update(status="awaiting_approval", pending=pending))
             self.store.event(run["id"], "approval_required", node=stage, approval_kind=kind,
                              **{key: value for key, value in pending.items() if key != "kind"})
         decision = interrupt(pending)
         self.check(state)
-        if not decision.get("approved"):
+        if not decision.get("approved") and kind != "optional_promotion":
             raise SafeStop("Human rejected the proposed action")
         current = self.store.get(run["id"])
         if self.workspaces.head(run["id"]) != pending["source_sha"] or current["revision"] != pending["revision"]:
@@ -230,7 +239,7 @@ class Engine:
         self.store.update(run["id"], lambda r: r.update(pending=None, status="running"))
         self.begin(state, stage)
         self.finish(state, stage, {"decision": decision, "approval": pending})
-        return {}
+        return {"promote_locally": bool(decision.get("approved"))} if kind == "optional_promotion" else {}
 
     async def change_approval(self, state):
         run = self.check(state)
@@ -252,6 +261,8 @@ class Engine:
             extra["review_findings"] = run["artifacts"].get("review")
         if run["scenario"] == "ambiguous":
             extra["clarified_scope"] = "Creation rate limiting: 20 requests per minute per client, configurable via shortener.creation-limit-per-minute. Return 429 and Retry-After. Redirects must remain unlimited. In-memory state is sufficient for a single-instance local prototype; document that limitation. Avoid retaining identifiers in logs or the database."
+        if run["scenario"] == "enhancement":
+            extra["enhancement_scope"] = "Implement the operator's enhancement in the supplied existing source. Preserve existing URL behavior, configured expiry and creation limits. Add tests specific to the new requirement. Do not rebuild the service or replace existing migrations. Generated files cannot edit platform code, manifests or application.yml."
         output = await self.generate(state, "implementation", extra)
         if not output.files:
             raise SafeStop("Implementation returned no reviewable source changes")
@@ -319,10 +330,55 @@ class Engine:
         return {"review_passed": passed}
 
     async def release_approval(self, state):
-        return await self.approval_gate(state, "release_approval", "promotion")
+        kind = "github" if self.check(state)["scenario"] == "enhancement" else "promotion"
+        return await self.approval_gate(state, "release_approval", kind)
+
+    def validated_source(self, state):
+        run = self.check(state)
+        tests = run["artifacts"]["tests"]
+        jar = self.project / ".runtime" / tests["output_directory"] / "app.jar"
+        if (not tests["passed"] or tests["revision"] != run["revision"]
+            or tests["source_sha"] != self.workspaces.head(run["id"])
+            or tests["fingerprint"] != self.workspaces.fingerprint(run["id"])
+            or tests["jar_sha256"] != hashlib.sha256(jar.read_bytes()).hexdigest()
+            or run["artifacts"]["review"]["output"]["verdict"] != "pass"):
+            raise SafeStop("Delivery source or artifact does not match passing validation and review")
+        return run
+
+    async def github_delivery(self, state):
+        run = self.validated_source(state)
+        operation = self.operation(state, "github_delivery")
+        receipt = self.store.receipt(run["id"], operation)
+        if receipt:
+            self.begin(state, "github_delivery")
+            self.finish(state, "github_delivery", receipt)
+            return {}
+        self.begin(state, "github_delivery")
+        tests = run["artifacts"]["tests"]
+        evidence = {"execution_kind": run.get("execution_kind", "live_agent_run"), "run_id": run["id"],
+                    "requirement": run["requirement"], "revision": run["revision"], "github_target": run["github_target"],
+                    "source_sha": tests["source_sha"], "fingerprint": tests["fingerprint"],
+                    "model_calls": run["model_calls"], "repair_cycles": run["repair_cycles"],
+                    "tests": {key: tests[key] for key in ("passed", "unit", "acceptance", "jar_sha256")},
+                    "engineering": {key: run["artifacts"][key] for key in ("requirements", "plan", "architecture", "test_design", "documentation", "review", "release_approval")}}
+        key = self.gateway.secrets.get(run["id"], "")
+        evidence = json.loads(scrub(canonical(evidence), [key]))
+        receipt = await self.delivery.publish(run, self.workspaces.path(run["id"]), evidence)
+        self.check(state)
+        self.store.record_receipt(run["id"], operation, receipt)
+        self.finish(state, "github_delivery", receipt)
+        self.store.event(run["id"], "github_pr_created", **receipt)
+        return {}
+
+    async def local_release_approval(self, state):
+        decision = await self.approval_gate(state, "local_release_approval", "optional_promotion")
+        if not decision["promote_locally"]:
+            self.store.update(state["run_id"], lambda r: r["nodes"]["promotion"].update(status="skipped"))
+            self.store.event(state["run_id"], "local_promotion_skipped", reason="Operator kept the current demo")
+        return decision
 
     async def promotion(self, state):
-        run = self.check(state)
+        run = self.validated_source(state)
         operation = self.operation(state, "promotion")
         if self.store.receipt(run["id"], operation):
             return {}
@@ -372,6 +428,7 @@ class Engine:
         run = self.check(state)
         self.begin(state, "summary")
         artifact = {"run_id": run["id"], "scenario": run["scenario"], "requirement": run["requirement"], "revision": run["revision"],
+                    "pull_request": run["artifacts"].get("github_delivery"),
                     "source_sha": self.workspaces.head(run["id"]), "diff": self.workspaces.diff(run["id"]),
                     "validation": run["artifacts"]["tests"], "model_calls": run["model_calls"], "retries": run["retries"],
                     "repair_cycles": run["repair_cycles"], "rollbacks": run["rollbacks"], "recovery_seconds": run.get("recovery_seconds"),
@@ -391,24 +448,28 @@ class Engine:
             raise PolicyError("Only one active or waiting run is allowed; stop or finish it first")
         if request.scenario == "brownfield" and isinstance(self.runner, DockerRunner) and not (self.project / ".runtime/baseline.json").exists():
             raise PolicyError("Promote a fresh greenfield run first to establish the matching source and business database baseline; saved brownfield evidence is already inspectable")
+        if request.scenario == "enhancement" and len(request.requirement.strip()) < 10:
+            raise PolicyError("Describe the enhancement and its acceptance criteria in Engineering requirement")
         run_id = uuid.uuid4().hex
         if request.api_key:
             self.gateway.set_key(run_id, request.api_key.get_secret_value(), request.config.provider)
         try:
             await self.gateway.preflight(request.config, run_id)
             self.workspaces.create(run_id, request.scenario)
+            github_target = await self.delivery.prepare(run_id, self.workspaces.path(run_id)) if request.scenario == "enhancement" else None
         except Exception:
             self.gateway.forget(run_id)
             raise
         requirement = request.requirement.strip() or self.catalog[request.scenario]["requirement"]
         maximum_days = self.expiry_days(requirement)
-        if request.scenario == "ambiguous":
+        if request.scenario in {"ambiguous", "enhancement"}:
             demo_file = self.project / ".runtime/demo.json"
             maximum_days = json.loads(demo_file.read_text()).get("max_expiry_days", 7) if demo_file.exists() else 7
-        if re.search(r"\bsk-(?:ant-)?[A-Za-z0-9_-]{8,}", requirement) or (request.api_key and request.api_key.get_secret_value() in requirement):
+        if credential_like(requirement) or (request.api_key and request.api_key.get_secret_value() in requirement):
             self.gateway.forget(run_id)
             raise PolicyError("Keep credentials in the masked key field, never in the requirement")
         run = {"id": run_id, "scenario": request.scenario, "requirement": requirement,
+               "github_target": github_target,
                "revision": 1, "status": "queued", "created_at": utcnow(), "completed_at": None,
                "config": request.config.model_dump(), "model_calls": 0, "repair_cycles": 0,
                "retries": 0, "rollbacks": 0, "active_seconds": 0, "pending": None,
@@ -416,6 +477,9 @@ class Engine:
                "inject_fault": request.inject_fault, "fault_injected": False,
                "max_expiry_days": maximum_days, "base_sha": self.workspaces.head(run_id), "last_validated_sha": None,
                "target_fingerprint": self.workspaces.directory_fingerprint(self.project / "backend")}
+        if request.scenario != "enhancement":
+            for node in ("github_delivery", "local_release_approval"):
+                run["nodes"][node]["status"] = "skipped"
         self.store.save(run)
         self.store.event(run_id, "run_created", scenario=request.scenario, revision=1, requirement=requirement, config=run["config"], base_sha=run["base_sha"])
         self.dispatch(run_id)
@@ -427,7 +491,7 @@ class Engine:
 
     def safe_text(self, run_id: str, text: str):
         key = self.gateway.secrets.get(run_id, "")
-        if re.search(r"\bsk-(?:ant-)?[A-Za-z0-9_-]{8,}", text) or (key and key in text):
+        if credential_like(text) or (key and key in text):
             raise PolicyError("Keep credentials in the masked key field, never in requirements or clarification")
 
     def dispatch(self, run_id: str, resume=None):
@@ -492,7 +556,7 @@ class Engine:
         self.store.update(run_id, lambda r: r.update(status="stopped", completed_at=utcnow(), pending=None,
             stopped_candidate_sha=candidate_sha, candidate_diff=candidate_diff,
             stop_reason=scrub(reason, [self.gateway.secrets.get(run_id, "")]), rollbacks=r["rollbacks"] + 1))
-        if reason.startswith(("Docker operation failed", "Docker execution exceeded", "Trusted dependency cache", "Workflow failed safely")):
+        if reason.startswith(("Docker operation failed", "Docker execution exceeded", "Trusted dependency cache", "Workflow failed safely", "GitHub delivery command failed", "GitHub delivery timed out", "GitHub delivery could not reconcile")):
             self.store.update(run_id, lambda r: r.update(platform_failure=True))
         self.store.event(run_id, "safe_stop", reason=scrub(reason, [self.gateway.secrets.get(run_id, "")]), rollback_sha=checkpoint)
         self.gateway.forget(run_id)
@@ -532,11 +596,15 @@ class Engine:
         await self.gateway.preflight(RuntimeConfig.model_validate(run["config"]), run_id)
         self.unchanged_checkpoint(run)
         previous = {"revision": run["revision"], "requirement": run["requirement"], "artifacts": run["artifacts"], "pending": run["pending"], "repair_cycles": run["repair_cycles"]}
+        max_days = run["max_expiry_days"] if run["scenario"] == "enhancement" else self.expiry_days(requirement)
         def update(r):
             r.setdefault("lineage", []).append(previous)
             r.update(revision=r["revision"] + 1, requirement=requirement, pending=None,
                      artifacts={}, agent_inputs={}, nodes={node: {"status": "pending"} for node in NODES},
-                     repair_cycles=0, status="queued", clarification=None, max_expiry_days=self.expiry_days(requirement))
+                     repair_cycles=0, status="queued", clarification=None, max_expiry_days=max_days)
+            if r["scenario"] != "enhancement":
+                for node in ("github_delivery", "local_release_approval"):
+                    r["nodes"][node]["status"] = "skipped"
         self.store.update(run_id, update)
         self.store.event(run_id, "replanned", previous_revision=expected_revision, revision=expected_revision + 1,
                          invalidated=NODES, approvals_invalidated=True, requirement=requirement)
@@ -549,7 +617,7 @@ class Engine:
         if run["status"] != "awaiting_approval" or request.expected_revision != run["revision"] or request.approval_id != pending.get("approval_id") or request.artifact_hash != pending.get("artifact_hash"):
             self.store.event(run_id, "stale_approval_rejected", supplied_revision=request.expected_revision)
             raise PolicyError("Approval does not match the current requirement and artifact revision")
-        if request.approved:
+        if request.approved and pending.get("kind") not in {"github", "optional_promotion"}:
             await self.gateway.preflight(RuntimeConfig.model_validate(run["config"]), run_id)
         self.unchanged_checkpoint(run)
         self.store.event(run_id, "human_decision", approved=request.approved, reason=request.reason,
@@ -577,7 +645,8 @@ class Engine:
         if request.api_key:
             self.gateway.set_key(run_id, request.api_key.get_secret_value(), config.provider)
         try:
-            await self.gateway.preflight(config, run_id)
+            if not self.delivery_only(run):
+                await self.gateway.preflight(config, run_id)
         except Exception:
             self.gateway.forget(run_id)
             raise
@@ -601,7 +670,8 @@ class Engine:
             config = RuntimeConfig.model_validate(run["config"])
             if request.api_key:
                 self.gateway.set_key(run_id, request.api_key.get_secret_value(), config.provider)
-            await self.gateway.preflight(config, run_id)
+            if not self.delivery_only(run):
+                await self.gateway.preflight(config, run_id)
             candidate = run["artifacts"].get("implementation", {}).get("source_sha") or run["base_sha"]
             self.workspaces.rollback(run_id, candidate)
             self.store.update(run_id, lambda r: r.update(status="interrupted", completed_at=None, stop_reason=None,
@@ -609,3 +679,9 @@ class Engine:
             self.store.event(run_id, "infrastructure_retry", restored_source_sha=candidate,
                              budgets_preserved=True, attempt=run.get("retry_attempts", 0) + 1)
             self.dispatch(run_id)
+
+    @staticmethod
+    def delivery_only(run):
+        return (run["scenario"] == "enhancement" and "release_approval" in run["artifacts"]
+                and run["artifacts"].get("review", {}).get("output", {}).get("verdict") == "pass"
+                and run["artifacts"].get("tests", {}).get("passed"))

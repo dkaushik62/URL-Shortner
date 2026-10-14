@@ -123,7 +123,7 @@ def create_app(injected_engine=None):
 
     @app.get("/engineering/runs")
     async def history():
-        return [{key: run.get(key) for key in ["id", "scenario", "requirement", "status", "revision", "created_at", "completed_at", "active_seconds", "end_to_end_seconds", "model_calls", "repair_cycles", "retries", "rollbacks", "recovery_seconds", "stop_reason"]} for raw in engine().store.list() for run in [engine().public_run(raw)]]
+        return [{**{key: run.get(key) for key in ["id", "scenario", "requirement", "status", "revision", "created_at", "completed_at", "active_seconds", "end_to_end_seconds", "model_calls", "repair_cycles", "retries", "rollbacks", "recovery_seconds", "stop_reason"]}, "pull_request_url": run.get("artifacts", {}).get("github_delivery", {}).get("url")} for raw in engine().store.list() for run in [engine().public_run(raw)]]
 
     @app.get("/engineering/metrics")
     async def metrics():

@@ -18,11 +18,15 @@ DISABLED_FEATURES = ["shell_tool", "unified_exec", "code_mode_host", "apps", "pl
                      "multi_agent", "multi_agent_v2", "skill_search", "workspace_dependencies"]
 
 
+def credential_like(text: str) -> bool:
+    return bool(re.search(r"\b(?:sk-(?:ant-)?|gh[pousr]_|github_pat_)[A-Za-z0-9_-]{8,}", text))
+
+
 def scrub(text: str, secrets: list[str] = ()) -> str:
     for secret in secrets:
         if secret:
             text = text.replace(secret, "[REDACTED]")
-    return re.sub(r"\b(?:sk-|sk-ant-)[A-Za-z0-9_-]{8,}", "[REDACTED]", text)
+    return re.sub(r"\b(?:sk-(?:ant-)?|gh[pousr]_|github_pat_)[A-Za-z0-9_-]{8,}", "[REDACTED]", text)
 
 
 def claude_schema(value=None):
@@ -130,7 +134,7 @@ class ModelGateway:
         except ValueError:
             raise SafeStop("Model output did not satisfy the engineering schema") from None
         secret = self.secrets.get(run_id, "")
-        if secret and secret in output.model_dump_json():
+        if (secret and secret in output.model_dump_json()) or credential_like(output.model_dump_json()):
             raise SafeStop("Credential leakage detected in model output")
         return output
 
