@@ -4,4 +4,6 @@ export type Pending = { kind: string; revision: number; approval_id?: string; ar
 export type Run = RunSummary & { nodes: Record<string, { status: string; started_at?: string; finished_at?: string }>; artifacts: Record<string, any>; pending: Pending | null; diff: string; audit_chain_valid: boolean; config: RuntimeConfig; lineage?: any[]; fault_injected: boolean; max_expiry_days: number; platform_failure?: boolean };
 export type Settings = { scenarios: Record<string, { title: string; requirement: string }>; nodes: string[]; edges: [string, string][]; providers: { id: string; label: string; enabled: boolean }[] };
 export type RunEvent = { seq: number; at: string; kind: string; data: Record<string, unknown>; hash: string };
+export type SavedEvidence = RunSummary & { filename: string; sha256: string };
+export type EvidenceBundle = { run: Run; events: RunEvent[]; filename: string; provenance: Record<string, string> };
 export type Metrics = { runs: number; completed: number; successful: number; success_rate: number | null; retries: number; rollbacks: number; mean_recovery_seconds: number | null };

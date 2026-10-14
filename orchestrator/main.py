@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from orchestrator.domain import (EDGES, NODES, TERMINAL, ApprovalRequest, ClarificationRequest,
                                  PolicyError, ResumeRequest, RevisionRequest, RunRequest, SafeStop)
 from orchestrator.engine import Engine
+from orchestrator.evidence import EvidenceArchive
 from orchestrator.models import ModelGateway
 from orchestrator.runner import DockerRunner
 from orchestrator.store import Store, canonical
@@ -136,6 +137,14 @@ def create_app(injected_engine=None):
                 "mean_recovery_seconds": sum(recoveries) / len(recoveries) if recoveries else None,
                 "definitions": {"success_rate": "Successful runs / all terminal runs, including operator stops and rejection",
                                 "mean_recovery_seconds": "First failed validation to passing validation, for recovered runs only"}}
+
+    @app.get("/engineering/evidence")
+    async def saved_evidence():
+        return EvidenceArchive(engine().project / "verification/live-runs").list()
+
+    @app.get("/engineering/evidence/{name}")
+    async def saved_run(name: str):
+        return EvidenceArchive(engine().project / "verification/live-runs").get(name)
 
     @app.post("/engineering/runs", status_code=201)
     async def create_run(request: RunRequest):

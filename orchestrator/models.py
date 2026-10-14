@@ -138,6 +138,10 @@ class ModelGateway:
         if proc.returncode:
             # Never persist raw CLI diagnostics: they may contain account information.
             raise SafeStop("Codex did not complete the call; check CLI sign-in, model access and included usage limits")
+        return self.parse_cli_output(stdout)
+
+    @staticmethod
+    def parse_cli_output(stdout: bytes) -> str:
         final = None
         for line in stdout.decode(errors="replace").splitlines():
             try:
@@ -147,8 +151,14 @@ class ModelGateway:
             if event.get("type") == "turn.failed" or event.get("type") == "error":
                 raise SafeStop("Codex reported a failed inference turn")
             item = event.get("item", {})
-            if item and item.get("type") not in {"agent_message", "reasoning", "plan_update"}:
-                raise SafeStop("Unexpected tool invocation in inference-only Codex mode")
+            if item.get("type") == "error":
+                # The official event contract calls these non-fatal diagnostics.
+                # Suppress their text; require a final schema-valid message below.
+                continue
+            # Official CLI todo_list items are planning metadata, not tool calls.
+            if item and item.get("type") not in {"agent_message", "reasoning", "plan_update", "todo_list"}:
+                kind = re.sub(r"[^a-z_]+", "", str(item.get("type", "unknown")))[:48]
+                raise SafeStop(f"Unexpected CLI item ({kind}) in inference-only Codex mode")
             if event.get("type") == "item.completed" and item.get("type") == "agent_message":
                 final = item.get("text")
         if not final:

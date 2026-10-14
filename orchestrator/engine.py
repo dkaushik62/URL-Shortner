@@ -97,11 +97,13 @@ class Engine:
         context = {"requirement": run["requirement"], "scenario": run["scenario"],
                    "revision": run["revision"], "clarification": run.get("clarification"),
                    "max_expiry_days": run["max_expiry_days"], "creation_limit_per_minute": 20,
-                   "upstream": {key: value for key, value in run["artifacts"].items() if key in {"requirements", "plan", "architecture", "test_design"}}}
+                   "upstream": {key: {field: value[field] for field in ["revision", "source_sha", "output"] if field in value}
+                                for key, value in run["artifacts"].items() if key in {"requirements", "plan", "architecture", "test_design"}}}
         if stage in {"implementation", "architecture", "test_design", "review", "documentation"}:
             context["repository"] = self.workspaces.context(run["id"])
         if extra:
             context.update(extra)
+        self.store.update(run["id"], lambda r: r.setdefault("agent_inputs", {}).update({stage: context}))
         for attempt in range(3):
             self.check(state)
             def consume(snapshot):
@@ -137,7 +139,7 @@ class Engine:
         output = await self.generate(state, stage, extra)
         if stage != "implementation" and output.files:
             raise PolicyError("Only the implementation stage can propose source writes")
-        artifact = {"revision": state["revision"], "source_sha": self.workspaces.head(state["run_id"]), "output": output.model_dump()}
+        artifact = {"revision": state["revision"], "source_sha": self.workspaces.head(state["run_id"]), "input": self.store.get(state["run_id"])["agent_inputs"][stage], "output": output.model_dump()}
         self.finish(state, stage, artifact)
         self.store.record_receipt(state["run_id"], operation, artifact)
         return output
@@ -145,7 +147,11 @@ class Engine:
     async def requirements(self, state):
         output = await self.agent_stage(state, "requirements")
         run = self.check(state)
-        return {"needs_clarification": output.verdict == "clarify" or (run["scenario"] == "ambiguous" and not run.get("clarification"))}
+        needed = output.verdict == "clarify" or (run["scenario"] == "ambiguous" and not run.get("clarification"))
+        if not needed:
+            self.store.update(run["id"], lambda r: r["nodes"].update(clarification={"status": "skipped", "revision": state["revision"]}))
+            self.store.event(run["id"], "node_skipped", node="clarification", reason="Requirements were sufficiently concrete", revision=state["revision"])
+        return {"needs_clarification": needed}
 
     async def clarification(self, state):
         run = self.check(state)
@@ -403,7 +409,13 @@ class Engine:
     def dispatch(self, run_id: str, resume=None):
         if run_id in self.tasks and not self.tasks[run_id].done():
             raise PolicyError("Run worker is already executing")
+        self.store.update(run_id, lambda r: r.update(status="queued"))
         self.tasks[run_id] = asyncio.create_task(self.execute(run_id, resume))
+
+    def unchanged_checkpoint(self, before: dict):
+        current = self.store.get(before["id"])
+        if (current["revision"], current["status"], current.get("pending")) != (before["revision"], before["status"], before.get("pending")):
+            raise PolicyError("Checkpoint changed while the action was being validated; reload its current state")
 
     async def execute(self, run_id: str, resume=None):
         run = self.store.get(run_id)
@@ -444,7 +456,7 @@ class Engine:
         self.store.update(run_id, lambda r: r.update(status="stopped", completed_at=utcnow(), pending=None,
             stopped_candidate_sha=candidate_sha, candidate_diff=candidate_diff,
             stop_reason=scrub(reason, [self.gateway.secrets.get(run_id, "")]), rollbacks=r["rollbacks"] + 1))
-        if reason.startswith(("Docker operation failed", "Trusted dependency cache", "Workflow failed safely")):
+        if reason.startswith(("Docker operation failed", "Docker execution exceeded", "Trusted dependency cache", "Workflow failed safely")):
             self.store.update(run_id, lambda r: r.update(platform_failure=True))
         self.store.event(run_id, "safe_stop", reason=scrub(reason, [self.gateway.secrets.get(run_id, "")]), rollback_sha=checkpoint)
         self.gateway.forget(run_id)
@@ -480,12 +492,13 @@ class Engine:
             raise PolicyError("Requirements can change only at a checkpoint with the current revision")
         self.safe_text(run_id, requirement)
         await self.gateway.preflight(RuntimeConfig.model_validate(run["config"]), run_id)
+        self.unchanged_checkpoint(run)
         previous = {"revision": run["revision"], "requirement": run["requirement"], "artifacts": run["artifacts"], "pending": run["pending"], "repair_cycles": run["repair_cycles"]}
         def update(r):
             r.setdefault("lineage", []).append(previous)
             r.update(revision=r["revision"] + 1, requirement=requirement, pending=None,
-                     artifacts={}, nodes={node: {"status": "pending"} for node in NODES},
-                     repair_cycles=0, status="queued", max_expiry_days=self.expiry_days(requirement))
+                     artifacts={}, agent_inputs={}, nodes={node: {"status": "pending"} for node in NODES},
+                     repair_cycles=0, status="queued", clarification=None, max_expiry_days=self.expiry_days(requirement))
         self.store.update(run_id, update)
         self.store.event(run_id, "replanned", previous_revision=expected_revision, revision=expected_revision + 1,
                          invalidated=NODES, approvals_invalidated=True, requirement=requirement)
@@ -497,7 +510,9 @@ class Engine:
         if run["status"] != "awaiting_approval" or request.expected_revision != run["revision"] or request.approval_id != pending.get("approval_id") or request.artifact_hash != pending.get("artifact_hash"):
             self.store.event(run_id, "stale_approval_rejected", supplied_revision=request.expected_revision)
             raise PolicyError("Approval does not match the current requirement and artifact revision")
-        await self.gateway.preflight(RuntimeConfig.model_validate(run["config"]), run_id)
+        if request.approved:
+            await self.gateway.preflight(RuntimeConfig.model_validate(run["config"]), run_id)
+        self.unchanged_checkpoint(run)
         self.store.event(run_id, "human_decision", approved=request.approved, reason=request.reason,
                          approval_id=request.approval_id, artifact_hash=request.artifact_hash, revision=run["revision"], decision_source=request.source,
                          authenticated_human_identity=False)
@@ -509,6 +524,7 @@ class Engine:
             raise PolicyError("Clarification does not match the waiting revision")
         self.safe_text(run_id, request.answers)
         await self.gateway.preflight(RuntimeConfig.model_validate(run["config"]), run_id)
+        self.unchanged_checkpoint(run)
         self.store.event(run_id, "clarification_answered", answers=request.answers, revision=run["revision"])
         self.dispatch(run_id, request.answers)
 
@@ -517,6 +533,8 @@ class Engine:
         if run["status"] not in WAITING:
             raise PolicyError("Run is not at a resumable checkpoint")
         config = request.config or RuntimeConfig.model_validate(run["config"])
+        if config.limits.max_model_calls < run["model_calls"] or config.limits.active_minutes * 60 < run["active_seconds"] or config.limits.max_repair_cycles < run["repair_cycles"]:
+            raise PolicyError("New limits cannot be lower than already consumed execution")
         if request.api_key:
             self.gateway.set_key(run_id, request.api_key.get_secret_value(), config.provider)
         try:
@@ -524,6 +542,7 @@ class Engine:
         except Exception:
             self.gateway.forget(run_id)
             raise
+        self.unchanged_checkpoint(run)
         if request.config:
             self.store.update(run_id, lambda r: r.update(config=config.model_dump()))
             self.store.event(run_id, "configuration_changed", config=config.model_dump(), at_checkpoint=True)

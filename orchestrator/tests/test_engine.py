@@ -114,3 +114,28 @@ def test_task_graph_cycles_and_unknown_dependencies():
                   [Task(id="a", title="a", dependencies=["b"], acceptance=[]), Task(id="b", title="b", dependencies=["a"], acceptance=[])]]:
         with pytest.raises(Exception):
             Engine.validate_tasks(AgentOutput(**base, tasks=tasks))
+
+
+async def test_concurrent_approval_consumes_checkpoint_once(engine):
+    import asyncio
+    run = await engine.create(RunRequest(scenario="greenfield"))
+    run = await settle(engine, run["id"])
+    async def slow_preflight(*args):
+        await asyncio.sleep(.01)
+    engine.gateway.preflight = slow_preflight
+    outcomes = await asyncio.gather(engine.approve(run["id"], approval(run)), engine.approve(run["id"], approval(run)), return_exceptions=True)
+    assert sum(isinstance(result, PolicyError) for result in outcomes) == 1
+    completed = await settle(engine, run["id"])
+    assert completed["status"] == "succeeded" and len(engine.runner.promotions) == 1
+    assert len([event for event in engine.store.events(run["id"]) if event["kind"] == "human_decision"]) == 1
+
+
+async def test_rejection_does_not_require_model_connection(engine):
+    run = await engine.create(RunRequest(scenario="greenfield"))
+    run = await settle(engine, run["id"])
+    async def disconnected(*args):
+        raise PolicyError("Model disconnected")
+    engine.gateway.preflight = disconnected
+    await engine.approve(run["id"], approval(run, False))
+    stopped = await settle(engine, run["id"])
+    assert stopped["status"] == "stopped" and not engine.runner.promotions

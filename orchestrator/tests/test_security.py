@@ -48,6 +48,16 @@ def test_redaction():
     assert "sk-ant-example12345" not in scrub("key sk-ant-example12345")
 
 
+def test_cli_planning_metadata_is_allowed_and_host_tools_fail_closed():
+    output = [{"type": "item.completed", "item": {"type": "todo_list", "items": []}},
+              {"type": "item.completed", "item": {"type": "error", "message": "NONFATAL-PRIVATE-DIAGNOSTIC"}},
+              {"type": "item.completed", "item": {"type": "agent_message", "text": "{}"}}]
+    assert ModelGateway.parse_cli_output("\n".join(json.dumps(event) for event in output).encode()) == "{}"
+    for kind in ["command_execution", "file_change", "mcp_tool_call", "web_search", "unknown_extension"]:
+        with pytest.raises(SafeStop, match="Unexpected CLI item"):
+            ModelGateway.parse_cli_output(json.dumps({"type": "item.started", "item": {"type": kind}}).encode())
+
+
 @pytest.mark.parametrize("provider", ["openai", "claude"])
 async def test_official_api_adapter_transport_and_error_redaction(tmp_path, monkeypatch, provider):
     output = {"summary": "transport test only", "verdict": "pass", "decisions": [], "tasks": [], "questions": [], "risks": [], "files": []}
