@@ -1,8 +1,22 @@
 # Build stages and evidence
 
-The implementation branch is `codex/assignment-prototype`. The repository stays
-private; the owner must grant the interviewer access. `main` is the original
-README until the implementation pull request is reviewed and merged.
+The original implementation branch was `codex/assignment-prototype`, merged into
+`main` through PR #1 with its stage commits retained. The repository stays private;
+the owner must grant the interviewer access. Subsequent changes use separate PRs.
+
+## 2026-10-15: current-project enhancements and GitHub PR delivery
+
+The operator requested an enhancement mode that accepts custom requirements and
+creates a GitHub PR. This addition has separate core workflow, UI, and tests/evidence
+commits. They were recorded after integration and verification; their timestamps
+are not a reconstruction of individual editing sessions.
+
+Live documentation-only run `aeddd134cf2d44d59db0fa37436686f6` generated one backend
+documentation page, passed 100 Java tests and 39 HTTP checks, preserved its PR
+approval across a server restart, and created draft PR #2 through the Workbench.
+A second real delivery reconciled the same PR. The run finished without local
+promotion. The error-code/exception/logging enhancement remains for the operator
+to submit. [Full verification](../verification/ENHANCEMENT_REPORT.md).
 
 ## Reading the implementation
 

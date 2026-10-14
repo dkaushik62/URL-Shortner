@@ -15,7 +15,7 @@ required for the application. Windows, macOS and Linux use the same Python scrip
 The repository is private. Reviewers need access from its owner before cloning:
 
 ```text
-git clone --branch codex/assignment-prototype https://github.com/dkaushik62/URL-Shortner.git
+git clone https://github.com/dkaushik62/URL-Shortner.git
 cd URL-Shortner
 python scripts/bootstrap.py
 python scripts/start.py
@@ -33,8 +33,9 @@ a model connection. **New live engineering runs need the operator's own model
 access.** Your credentials and the author's account tokens are never distributed.
 
 For the development stages, start with [the build journal](docs/BUILD_JOURNAL.md)
-and the branch's commit history. The implementation is on
-`codex/assignment-prototype` while its draft pull request is under review.
+and the repository's commit history. The original implementation was merged
+through PR #1, retaining its stage commits. While the enhancement workflow PR is
+under review, switch to `codex/enhancement-pr-workflow` to try the newest Workbench.
 
 The submitted service includes expiration capped at **7 days** and a shared local
 creation limit of **20 requests/minute**, configurable with
@@ -62,6 +63,44 @@ the run. The development machine used Codex CLI 0.162.0-alpha.17.2.
 [Codex automation](https://learn.chatgpt.com/docs/non-interactive-mode) supports
 saved authentication and structured outputs; [authentication](https://learn.chatgpt.com/docs/auth)
 distinguishes ChatGPT subscription access from API-key usage.
+
+## Submit a new enhancement and get a GitHub PR
+
+The default **Agent Workbench → Enhancement → Enhance current project** option
+uses the existing Java service, including its expiry and rate limiter. Paste your
+change and acceptance criteria into **Engineering requirement**, then click
+**Execute requirement**. This mode changes the Java service and its tests/docs;
+changes to the Python/React platform or dependencies require a separate reviewed change.
+
+GitHub delivery also needs **GitHub CLI (`gh`)** installed and signed in:
+
+```text
+gh auth login
+gh auth status
+```
+
+Use an account with write access to the private repository. The app reads its
+destination from `origin`; model agents never receive GitHub credentials or tools.
+The current Java source must match GitHub's default branch. Commit/review/merge
+previous backend changes and update the checkout before starting another enhancement.
+This prevents a new PR from silently including someone else's unfinished edits.
+
+1. Review the proposed change and approve sandbox implementation when prompted.
+2. Inspect **Source diff** and **Test evidence**. Real Java and independent HTTP
+   checks verify the requested code plus existing URL/expiry/rate behavior and a V1 upgrade.
+3. Click **Approve & create draft PR**. The app commits the validated changes to
+   `workbench/<run-id>-r<revision>`, pushes it and creates a private **draft PR**.
+4. The **Draft PR ready** panel links to the PR. It includes requirement, engineering
+   decisions/review, documentation and test evidence in a committed JSON artifact.
+5. Choose **Finish without local promotion** to keep the existing demo, or
+   **Approve local promotion** to run the validated candidate locally. Neither
+   choice merges the PR; review and merge it separately in GitHub.
+
+Runs continue independently of the browser but pause for clarification and
+approval. Transport failures retain a delivery journal; use the bounded retry
+control to reconcile an already pushed branch/created PR. No force-push, automatic
+merge, repository visibility change or new paid model fallback occurs.
+See [enhancement delivery and recovery](docs/ENHANCEMENT_DELIVERY.md).
 
 ## Demonstrate the assignment
 

@@ -1,0 +1,33 @@
+{
+  "run_id": "aeddd134cf2d44d59db0fa37436686f6",
+  "live_model_connection": "ChatGPT-authenticated Codex CLI",
+  "model_calls": 7,
+  "source_changes": [
+    "backend/docs/http-behavior.md"
+  ],
+  "java_tests": 100,
+  "http_checks": 39,
+  "validation_passed": true,
+  "review_passed": true,
+  "restart_checkpoint_preserved": true,
+  "live_reconciliation_same_pr": true,
+  "pull_request": {
+    "base_branch": "main",
+    "base_sha": "e2f06bfacbafdc550391815a9b965f1a83720914",
+    "baseline_fingerprint": "7cc3bd643cef7b936460afad6a34758bf0431601700195c794566a5d0c37d493",
+    "branch": "workbench/aeddd134cf2d44d59db0fa37436686f6-r1",
+    "commit_sha": "d85f2562df58dd7bb444bd1f0a101d006de879f4",
+    "draft": true,
+    "evidence_path": "verification/enhancements/aeddd134cf2d44d59db0fa37436686f6-r1.json",
+    "number": 2,
+    "repository": "dkaushik62/URL-Shortner",
+    "state": "OPEN",
+    "url": "https://github.com/dkaushik62/URL-Shortner/pull/2"
+  },
+  "local_promotion": false,
+  "decisions": "Verification automation through the Workbench UI; not authenticated human identity",
+  "final_status": "succeeded",
+  "audit_chain_valid": true,
+  "local_promotion_skipped": true,
+  "active_seconds": 407.47
+}
