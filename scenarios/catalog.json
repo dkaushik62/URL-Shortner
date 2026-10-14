@@ -1,0 +1,14 @@
+{
+  "greenfield": {
+    "title": "Build the URL service",
+    "requirement": "Build a Java URL shortener with POST /api/urls accepting {url}, GET /r/{code} returning a 302 redirect, and GET /api/urls/{code}/analytics returning code, url, createdAt, clickCount, lastAccessedAt. Return code and shortUrl from creation with status 201. Persist in PostgreSQL using JdbcTemplate and a Flyway migration. Validate HTTP/HTTPS destinations without fetching them, reject credentials/control characters, use cryptographically random base62 codes with bounded unique-conflict retries, and count concurrent redirects atomically. Add JUnit tests. No expiration or rate limiting in this baseline."
+  },
+  "brownfield": {
+    "title": "Add URL expiration",
+    "requirement": "Enhance the existing URL service with optional expiresAt (ISO-8601 UTC instant) in POST /api/urls. Require future expiry no more than 30 days from the current time. Add a nullable expires_at column with a new additive Flyway migration; preserve existing links and the original API fields. Return 410 for expired links, 404 for unknown links, and count only successful redirects. Expiry exactly at the current instant is expired. Include expiry in creation and analytics output. Use injected Clock for deterministic tests. Add JUnit tests."
+  },
+  "ambiguous": {
+    "title": "Make the service reliable at scale",
+    "requirement": "Make the service reliable at scale."
+  }
+}
