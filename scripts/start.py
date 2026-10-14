@@ -33,7 +33,8 @@ def main():
         env.setdefault("SHORTENER_MAX_EXPIRY_DAYS", str(demo.get("max_expiry_days", 7)))
     subprocess.run(["docker", "compose", "up", "-d", "postgres", "business_postgres", "backend", "proxy"], check=True, cwd=ROOT, env=env)
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-    for attempt in range(90):
+    deadline = time.monotonic() + 240
+    while time.monotonic() < deadline:
         try:
             with opener.open("http://127.0.0.1:8080/actuator/health", timeout=2) as health:
                 if health.status == 200:

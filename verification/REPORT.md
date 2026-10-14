@@ -6,7 +6,7 @@ tests and scripted decisions. The private repository requires reviewer access.
 
 | Check | Observed result |
 |---|---|
-| Python orchestration/security suite | 46 passed, 1 skipped; machine-readable python-junit.xml included. The symlink-file test was skipped because Windows did not grant symlink creation; path/traversal/case-alias policy checks passed. |
+| Python orchestration/security suite | 47 passed, 1 skipped; machine-readable python-junit.xml included. The symlink-file test was skipped because Windows did not grant symlink creation; path/traversal/case-alias policy checks passed. |
 | Optional provider adapters | 11 transport/security tests passed after adding native structured output for Claude; no live OpenAI/Claude API call was made. |
 | Frontend | TypeScript check and production build passed. |
 | Final Java service | 100 JUnit tests passed. |

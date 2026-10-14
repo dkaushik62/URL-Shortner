@@ -166,3 +166,16 @@ async def test_live_brownfield_missing_database_baseline_fails_before_model_use(
     with pytest.raises(PolicyError, match="fresh greenfield"):
         await engine.create(RunRequest(scenario="brownfield"))
     assert engine.gateway.stages == [] and engine.store.list() == []
+
+
+async def test_ambiguous_planning_preserves_accepted_expiry_policy(engine):
+    import json
+    receipt = engine.project / ".runtime/demo.json"
+    receipt.parent.mkdir(exist_ok=True)
+    receipt.write_text(json.dumps({"max_expiry_days": 7}))
+    run = await engine.create(RunRequest(scenario="ambiguous"))
+    run = await settle(engine, run["id"])
+    await engine.clarify(run["id"], ClarificationRequest(expected_revision=1, answers="Use a shared local creation limit of 20/minute; preserve expiry of 7 days"))
+    run = await settle(engine, run["id"])
+    assert run["max_expiry_days"] == 7
+    assert run["agent_inputs"]["plan"]["max_expiry_days"] == 7
