@@ -29,7 +29,7 @@ class CreationLimitHttpTest {
 
     @Configuration(proxyBeanMethods = false)
     @EnableWebMvc
-    @Import({CreationLimitConfiguration.class, UrlErrors.class})
+    @Import({CreationLimitConfiguration.class, UrlErrors.class, RequestCorrelationFilter.class, ServletErrors.class})
     static class WebConfig {
         @Bean UrlRepository repository() { return mock(UrlRepository.class); }
         @Bean CodeGenerator codes() { return mock(CodeGenerator.class); }
@@ -46,21 +46,15 @@ class CreationLimitHttpTest {
         context.setServletContext(new MockServletContext());
         if (property != null) TestPropertySourceUtils.addInlinedPropertiesToEnvironment(context,
                 "shortener.creation-limit-per-minute=" + property);
-        if (limiter == null) {
-            context.register(CreationRateLimiter.class);
-        } else {
-            // The refreshable context creates its BeanFactory during refresh.
-            // Register before singleton construction, using that initialized factory.
-            context.addBeanFactoryPostProcessor(factory ->
-                    factory.registerSingleton("creationRateLimiter", limiter));
-        }
+        if (limiter == null) context.register(CreationRateLimiter.class);
+        else context.addBeanFactoryPostProcessor(factory -> factory.registerSingleton("creationRateLimiter", limiter));
         context.register(WebConfig.class);
         return context;
     }
 
     private MockMvc mvc(AnnotationConfigWebApplicationContext context) {
         return MockMvcBuilders.webAppContextSetup(context)
-                .addFilters(new InjectedRedirectFaultFilter()).build();
+                .addFilters(context.getBean(RequestCorrelationFilter.class), new InjectedRedirectFaultFilter()).build();
     }
 
     @Test
@@ -88,7 +82,15 @@ class CreationLimitHttpTest {
                         .andExpect(status().isTooManyRequests())
                         .andExpect(header().string("Retry-After", org.hamcrest.Matchers.matchesPattern("[1-9][0-9]*")))
                         .andExpect(header().doesNotExist("Location"))
-                        .andExpect(content().json("{\"error\":\"Creation limit exceeded\"}"));
+                        .andExpect(jsonPath("$.code").value("RATE_LIMITED"))
+                        .andExpect(jsonPath("$.message").value("Creation limit exceeded"))
+                        .andExpect(result -> {
+                            var body = new com.fasterxml.jackson.databind.ObjectMapper()
+                                    .readTree(result.getResponse().getContentAsString());
+                            assertEquals(result.getResponse().getHeader("X-Request-ID"), body.get("requestId").asText());
+                            assertEquals("/api/urls", body.get("path").asText());
+                            Instant.parse(body.get("timestamp").asText());
+                        });
                 verifyNoInteractions(repository, codes);
             }
         }
@@ -114,7 +116,7 @@ class CreationLimitHttpTest {
             for (String body : new String[] {"{", "{\"url\":42}",
                     "{\"url\":\"https://example.com\",\"expiresAt\":\"bad\"}"}) {
                 mvc.perform(post("/api/urls").contentType(MediaType.APPLICATION_JSON).content(body))
-                        .andExpect(status().isBadRequest());
+                        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_INPUT"));
             }
             mvc.perform(post("/api/urls").contentType(MediaType.APPLICATION_JSON).content("{"))
                     .andExpect(status().isTooManyRequests()).andExpect(header().string("Retry-After", "60"));

@@ -1,105 +1,52 @@
-# Existing URL service HTTP behavior
+# URL service HTTP behavior
 
-This page describes the supplied Java implementation. Requests and responses use the existing field names and error bodies.
+## Creation
 
-## Create a link
+`POST /api/urls` accepts an object with required textual `url` and optional `expiresAt`. Creation returns 201 with `code`, `shortUrl`, `url`, `createdAt`, and explicitly nullable `expiresAt`. `Location` and `shortUrl` use only `shortener.public-base-url`; trailing slashes are removed and configured path prefixes are preserved. Client Host and forwarded headers do not determine public URLs.
 
-`POST /api/urls` accepts a JSON object with required string `url` and optional `expiresAt`:
+Destinations must be absolute HTTP/HTTPS URIs with a valid host and port. Credentials, malformed escapes, raw controls, encoded controls, empty explicit ports, and ports above 65535 are rejected. Validation makes no destination network request.
 
-```json
-{"url":"https://example.com/a?b=1#part"}
-```
+Omitted or null expiry means no expiration. Supplied expiry must be ISO-8601 text with UTC offset (`Z` or `+00:00`). It must be strictly later than one captured service clock instant and no later than `min(shortener.max-expiry-days, 7)` days afterward. The upper boundary is inclusive. Smaller positive settings impose a stricter maximum; nonpositive settings fail startup. The configured default of 30 days remains capped at seven. Invalid input is rejected before allocation after creation admission.
 
-Successful creation returns **201 Created**, a `Location` header containing the public short URL, and these JSON fields:
+## Redirects and analytics
 
-- `code`: generated eight-character base62 code.
-- `shortUrl`: public short URL.
-- `url`: stored destination.
-- `createdAt`: stored creation timestamp.
-- `expiresAt`: expiry timestamp, explicitly `null` for a non-expiring link.
+`GET /r/{code}` returns 302 and the exact stored destination in Location. Each eligible redirect atomically increments clickCount once and updates lastAccessedAt. Unknown links return 404; expiry equal to or earlier than the captured evaluation instant returns 410. These failures have no Location and do not update accounting. Disable redirect following when verifying HTTP responses.
 
-For example, with `shortener.public-base-url=http://127.0.0.1:8000`, a generated code `Ab12Cd34` produces `http://127.0.0.1:8000/r/Ab12Cd34` in both `shortUrl` and `Location`. Trailing slashes are removed from the configured base; configured path prefixes are preserved. Client `Host`, `Forwarded` and `X-Forwarded-*` headers do not determine these values. The configuration defaults through `SHORTENER_PUBLIC_BASE_URL` to `http://127.0.0.1:8000`.
+`GET /api/urls/{code}/analytics` returns 200 with code, url, createdAt, clickCount, lastAccessedAt, and explicitly nullable expiresAt. Analytics remains readable after expiry and never mutates redirect accounting. Unknown links return 404.
 
-### Input validation
+## Creation allowance
 
-`url` must be textual, nonblank and an absolute HTTP or HTTPS URI with a valid host and port. Scheme matching is case-insensitive. Credentials, malformed escapes, raw control characters and percent-encoded control characters are rejected. An explicit empty port or a port greater than 65535 is invalid. Validation makes no network request to the destination.
+`shortener.creation-limit-per-minute` defaults to 20 and accepts positive integer overrides. A shared process-local limiter admits that many attempts in a fixed 60-second monotonic window beginning with the first admitted attempt. Admission precedes body conversion and validation. Malformed bodies, rejected input, and failed creations consume allowance; collision retries do not consume additional slots.
 
-When creation admission succeeds, missing or invalid bodies, malformed JSON, invalid destinations and invalid expiry values return **400 Bad Request**:
+Excess attempts return 429 with Retry-After equal to the remaining window seconds rounded upward, at least one. Rejection does not extend the window or allocate codes/write rows. A new allowance is available at exactly 60 seconds. Redirects and analytics remain available. The limiter stores no visitor identifiers, resets on restart, and is independent in each instance. Fixed windows can admit twice the allowance across a boundary.
+
+## Error contract
+
+All application errors use these five fields:
 
 ```json
-{"error":"Invalid creation request"}
+{"code":"INVALID_INPUT","message":"Invalid creation request","timestamp":"2026-10-15T00:00:00Z","path":"/api/urls","requestId":"1b956bd9-55f3-4f89-9106-0c0bb66e7d83"}
 ```
 
-### Optional expiry and the seven-day maximum
+Timestamp is UTC ISO-8601 text independent of Jackson date serialization settings. Path is the request URI without a query string, or the original URI during servlet error dispatch. Request ID matches X-Request-ID. Every request receives a server-generated UUID; incoming IDs are ignored. IDs persist during error dispatch and appear in application events. Previous MDC state is restored when request processing exits.
 
-Omitting `expiresAt` or supplying JSON `null` creates a link without expiration. Seven days is the effective maximum for a supplied expiry, not an automatic lifetime.
+| Code | HTTP status | Client message |
+| --- | --- | --- |
+| INVALID_INPUT | 400 | Invalid creation request |
+| LINK_NOT_FOUND | 404 | Unknown code |
+| LINK_EXPIRED | 410 | Expired code |
+| RATE_LIMITED | 429 | Creation limit exceeded |
+| CODE_ALLOCATION_UNAVAILABLE | 503 | Code allocation unavailable |
+| INTERNAL_ERROR | 500 | Internal server error |
 
-A supplied expiry must be ISO-8601 text with UTC offset; `Z` and `+00:00` are accepted. Non-UTC offsets, missing offsets and non-string values are rejected. Relative to one captured service clock instant, expiry must be strictly in the future and no later than `min(shortener.max-expiry-days, 7)` days afterward. The upper boundary is inclusive.
+Allocation retains five attempts and the existing recognized PostgreSQL collision policy. Rate limiting retains Retry-After. Malformed JSON, Jakarta input validation failures, destination validation, and expiry validation produce INVALID_INPUT. Unrelated IllegalArgumentException failures produce INTERNAL_ERROR.
 
-`application.yml` defaults `shortener.max-expiry-days` through `SHORTENER_MAX_EXPIRY_DAYS` to 30, but `UrlService` caps the effective maximum at seven days. A smaller positive setting imposes a stricter maximum. Nonpositive settings fail startup. Invalid expiry is rejected before code allocation when admission succeeds.
+Framework errors preserve their status and supplied protocol headers, including Allow. Other client protocol errors use INVALID_INPUT with `Invalid HTTP request`; unrelated missing resources use LINK_NOT_FOUND with `Resource not found`. Framework or servlet server errors retain their status with INTERNAL_ERROR and the generic message. Internal exception messages never enter error bodies.
 
-## Follow a link
+The MVC advice owns controller exception handling. The correlation filter handles exceptions escaping MVC; the servlet error controller handles error dispatch. A request attribute prevents duplicate application failure events. Once a response is committed, its body and status cannot be replaced; only a safe failure event is recorded.
 
-`GET /r/{code}` returns **302 Found** for an eligible link, with the stored destination in `Location`. Each successful redirect atomically increments `clickCount` once and updates `lastAccessedAt` using the captured evaluation instant.
+## Verification
 
-An unknown code returns **404 Not Found**:
+Automated tests: no trusted results for this enhancement were supplied. Python tests, frontend typecheck/build, and Java tests were not executed by this stage.
 
-```json
-{"error":"Unknown code"}
-```
-
-An expiry equal to or earlier than the captured evaluation instant returns **410 Gone**:
-
-```json
-{"error":"Expired code"}
-```
-
-These 404 and 410 responses have no `Location` header. Expired redirects do not increment the counter or update the last-access timestamp. Non-expiring links remain eligible. HTTP verification must disable redirect following to observe the 302 response and its `Location`.
-
-## Read analytics
-
-`GET /api/urls/{code}/analytics` returns **200 OK** with `code`, `url`, `createdAt`, `clickCount`, `lastAccessedAt` and `expiresAt`. `lastAccessedAt` is null before any successful redirect; `expiresAt` is explicitly null for non-expiring links.
-
-Analytics remains readable after expiration and does not increment counters or update access timestamps. An unknown code returns 404 with `{"error":"Unknown code"}`.
-
-## Shared creation allowance
-
-`shortener.creation-limit-per-minute` defaults through `SHORTENER_CREATION_LIMIT` to **20** and supports positive integer overrides. Invalid configuration fails startup.
-
-One shared, process-local limiter covers creation attempts handled by this service instance. It does not allocate separate allowances by address, client headers or cookies. A fixed 60-second window measured with monotonic time starts on the first admitted attempt. The first configured number of attempts are admitted; a new window becomes available at exactly 60 seconds when another attempt arrives.
-
-Admission occurs before request-body conversion and validation. Admitted malformed JSON, invalid destinations, invalid expiry and failed creations consume allowance. Internal code-collision retries do not consume additional slots.
-
-Excess attempts return **429 Too Many Requests** with no `Location` header and this body:
-
-```json
-{"error":"Creation limit exceeded"}
-```
-
-`Retry-After` is an integer number of seconds: the remaining window duration rounded upward, with a minimum of one. Rejections do not extend the window and perform no code allocation or repository writes. Once exhausted, a request can receive 429 before its body would otherwise produce 400.
-
-Redirects and analytics neither consume this allowance nor receive limiter responses. State resets when the process restarts; multiple instances have independent allowances. Fixed windows can admit up to twice the configured allowance across a window boundary.
-
-## Other existing errors
-
-Code allocation exhaustion returns **503 Service Unavailable** with `{"error":"Code allocation unavailable"}`. Unexpected failures handled by `UrlErrors` return **500 Internal Server Error** with `{"error":"Internal server error"}`.
-
-## Source references
-
-Paths below are relative to `backend/`:
-
-- `src/main/java/com/urlshortner/urls/UrlController.java`: endpoint mappings, request parsing, response fields and configured public URLs.
-- `src/main/java/com/urlshortner/urls/UrlErrors.java`: status codes, error bodies and `Retry-After`.
-- `src/main/java/com/urlshortner/urls/Destination.java` and `ValidDestination.java`: destination validation and required textual input.
-- `src/main/java/com/urlshortner/urls/UrlService.java`: expiry limits, redirect eligibility and analytics behavior.
-- `src/main/java/com/urlshortner/urls/UrlRepository.java`: schema-qualified storage, exact expiry reconstruction and atomic redirect accounting.
-- `src/main/java/com/urlshortner/urls/CreationLimitConfiguration.java` and `CreationRateLimiter.java`: admission timing, shared allowance and window calculation.
-- `src/main/resources/application.yml`: public URL, expiry and creation-limit configuration defaults.
-
-## Verification status
-
-This page was checked against the supplied source and configuration. No current trusted-runner execution results were supplied.
-
-Automated tests: Java tests, Python tests and frontend typecheck/build were not executed by this implementation stage.
-
-Live runs: PostgreSQL verification and independent HTTP regression checks were not executed by this implementation stage. Existing Java and independent HTTP checks must pass through the trusted runner before regression acceptance is established. Historical results in other documentation do not establish results for this revision.
+Live runs: PostgreSQL and independent HTTP acceptance were not executed by this stage. Mocked and servlet fixture tests do not establish live behavior. Run generated code only through the trusted Docker runner and record actual results separately. Existing migrations and protected acceptance checks remain unchanged.

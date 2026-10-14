@@ -35,7 +35,7 @@ class UrlControllerTest {
                 .featuresToDisable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS).build();
         return MockMvcBuilders.standaloneSetup(new UrlController(service, base))
                 .setControllerAdvice(new UrlErrors()).setValidator(validator)
-                .addFilters(new InjectedRedirectFaultFilter())
+                .addFilters(new RequestCorrelationFilter(), new InjectedRedirectFaultFilter())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(mapper)).build();
     }
 
@@ -92,7 +92,7 @@ class UrlControllerTest {
     void rejectsExpiryTypesAndNonUtcValues(String expiry) throws Exception {
         mvc.perform(post("/api/urls").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"url\":\"https://example.com\",\"expiresAt\":" + expiry + "}"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_INPUT"));
         verifyNoInteractions(service);
     }
 
@@ -103,7 +103,7 @@ class UrlControllerTest {
             "{\"url\":\"https://user@example.com\"}", "{\"url\":\"https://example.com/\\r\\n\"}"})
     void invalidBodiesDoNotCallService(String body) throws Exception {
         mvc.perform(post("/api/urls").contentType(MediaType.APPLICATION_JSON).content(body))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_INPUT"));
         verifyNoInteractions(service);
     }
 
@@ -116,11 +116,14 @@ class UrlControllerTest {
         when(service.analytics("broken")).thenThrow(new IllegalStateException("private SQL"));
         mvc.perform(get("/r/valid")).andExpect(status().isFound())
                 .andExpect(header().string("Location", "https://example.com/a?b=1#part"));
-        mvc.perform(get("/r/expired")).andExpect(status().isGone()).andExpect(header().doesNotExist("Location"));
-        mvc.perform(get("/r/missing")).andExpect(status().isNotFound()).andExpect(header().doesNotExist("Location"));
+        mvc.perform(get("/r/expired")).andExpect(status().isGone()).andExpect(header().doesNotExist("Location"))
+                .andExpect(jsonPath("$.code").value("LINK_EXPIRED"));
+        mvc.perform(get("/r/missing")).andExpect(status().isNotFound()).andExpect(header().doesNotExist("Location"))
+                .andExpect(jsonPath("$.code").value("LINK_NOT_FOUND"));
         mvc.perform(get("/api/urls/missing/analytics")).andExpect(status().isNotFound());
         mvc.perform(get("/api/urls/broken/analytics")).andExpect(status().isInternalServerError())
-                .andExpect(content().json("{\"error\":\"Internal server error\"}"));
+                .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
+                .andExpect(jsonPath("$.message").value("Internal server error"));
         verify(service).redirect("valid");
     }
 
@@ -139,13 +142,17 @@ class UrlControllerTest {
 
     @Test
     void creationServiceValidationAndExhaustionMapToExpectedStatuses() throws Exception {
-        doThrow(new IllegalArgumentException()).when(service).create("https://example.com", null);
+        doThrow(new InvalidCreationRequest()).when(service).create("https://example.com", null);
         String body = "{\"url\":\"https://example.com\"}";
         mvc.perform(post("/api/urls").contentType(MediaType.APPLICATION_JSON).content(body))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_INPUT"));
         doThrow(new UrlService.AllocationExhausted()).when(service).create("https://example.com", null);
         mvc.perform(post("/api/urls").contentType(MediaType.APPLICATION_JSON).content(body))
-                .andExpect(status().isServiceUnavailable());
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("CODE_ALLOCATION_UNAVAILABLE"));
+        doThrow(new IllegalArgumentException("private failure")).when(service).create("https://example.com", null);
+        mvc.perform(post("/api/urls").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isInternalServerError()).andExpect(jsonPath("$.code").value("INTERNAL_ERROR"));
     }
 
     @ParameterizedTest
