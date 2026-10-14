@@ -29,17 +29,18 @@ public class UrlService {
 
     // No surrounding transaction: a uniqueness failure must not abort later attempts.
     public UrlRepository.StoredUrl create(String url, Instant expiresAt) {
-        if (!Destination.valid(url)) throw new IllegalArgumentException("Invalid destination");
+        if (!Destination.valid(url)) throw new InvalidCreationRequest();
         Instant now = clock.instant();
         if (expiresAt != null && (!expiresAt.isAfter(now)
                 || expiresAt.isAfter(now.plus(maximumExpiry)))) {
-            throw new IllegalArgumentException("Invalid expiry");
+            throw new InvalidCreationRequest();
         }
         for (int attempt = 0; attempt < 5; attempt++) {
             try {
                 return repository.insert(codes.next(), url, expiresAt);
             } catch (DataAccessException exception) {
                 if (!UrlRepository.isCodeConflict(exception)) throw exception;
+                RequestEvents.collision(attempt + 1);
             }
         }
         throw new AllocationExhausted();

@@ -35,13 +35,13 @@ public class UrlController {
 
     static Instant parseExpiry(JsonNode value) {
         if (value == null || value.isNull()) return null;
-        if (!value.isTextual()) throw new IllegalArgumentException("Invalid expiry type");
+        if (!value.isTextual()) throw new InvalidCreationRequest();
         try {
             OffsetDateTime parsed = OffsetDateTime.parse(value.textValue());
-            if (!parsed.getOffset().equals(ZoneOffset.UTC)) throw new IllegalArgumentException("Expiry must be UTC");
+            if (!parsed.getOffset().equals(ZoneOffset.UTC)) throw new InvalidCreationRequest();
             return parsed.toInstant();
         } catch (DateTimeParseException exception) {
-            throw new IllegalArgumentException("Invalid expiry", exception);
+            throw new InvalidCreationRequest();
         }
     }
 
