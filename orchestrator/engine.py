@@ -41,6 +41,7 @@ class Engine:
         self.tasks: dict[str, asyncio.Task] = {}
         self.segment_started: dict[str, float] = {}
         self.creation_lock = asyncio.Lock()
+        self.heartbeat_seconds = 15
         self.catalog = json.loads((project / "scenarios/catalog.json").read_text())
         self.graph = self.build_graph(checkpointer)
 
@@ -117,7 +118,8 @@ class Engine:
                     raise SafeStop("Model call budget exhausted; no billed fallback")
                 snapshot["model_calls"] += 1
             self.store.update(run["id"], consume)
-            self.store.event(run["id"], "model_call", node=stage, provider=config.provider, model=config.model or "CLI default", attempt=attempt + 1)
+            self.store.update(run["id"], lambda r: r["nodes"][stage].update(model_started_at=utcnow(), waiting_for_model=True, call_timeout_seconds=config.limits.call_timeout_seconds))
+            self.store.event(run["id"], "model_call", node=stage, provider=config.provider, model=config.model or "CLI default", attempt=attempt + 1, timeout_seconds=config.limits.call_timeout_seconds)
             try:
                 result = await self.gateway.generate(run["id"], config, stage, context)
                 self.check(state)
@@ -130,6 +132,11 @@ class Engine:
                     raise
                 context["schema_correction"] = "Previous output failed validation. Return exactly the required schema, with every field present and no additional fields."
                 self.store.event(run["id"], "fallback", node=stage, fallback_kind="schema_correction", provider_unchanged=True)
+            finally:
+                def model_finished(r):
+                    if r["revision"] == state["revision"]:
+                        r["nodes"][stage]["waiting_for_model"] = False
+                self.store.update(run["id"], model_finished)
             self.store.update(run["id"], lambda r: r.update(retries=r["retries"] + 1))
             self.store.event(run["id"], "retry", node=stage, attempt=attempt + 2)
             await asyncio.sleep(attempt + 1)
@@ -509,15 +516,19 @@ class Engine:
         run = self.store.get(run_id)
         start = time.monotonic()
         last_accounted = start
+        last_heartbeat = start
         self.segment_started[run_id] = start
         async def account_active_time():
-            nonlocal last_accounted
+            nonlocal last_accounted, last_heartbeat
             while True:
                 await asyncio.sleep(1)
                 current = time.monotonic()
                 self.store.update(run_id, lambda r: r.update(active_seconds=round(r["active_seconds"] + current - last_accounted, 3)))
                 last_accounted = current
                 self.segment_started[run_id] = current
+                if current - last_heartbeat >= self.heartbeat_seconds:
+                    self.store.event(run_id, "run_activity", active_seconds=self.store.get(run_id)["active_seconds"])
+                    last_heartbeat = current
         budget_clock = asyncio.create_task(account_active_time())
         self.store.update(run_id, lambda r: r.update(status="running"))
         graph_config = {"configurable": {"thread_id": f'{run_id}:r{run["revision"]}'}, "recursion_limit": 60}
@@ -553,9 +564,14 @@ class Engine:
         candidate_sha = self.workspaces.head(run_id)
         candidate_diff = self.workspaces.diff(run_id)
         self.workspaces.rollback(run_id, checkpoint)
-        self.store.update(run_id, lambda r: r.update(status="stopped", completed_at=utcnow(), pending=None,
-            stopped_candidate_sha=candidate_sha, candidate_diff=candidate_diff,
-            stop_reason=scrub(reason, [self.gateway.secrets.get(run_id, "")]), rollbacks=r["rollbacks"] + 1))
+        def stopped(r):
+            r.update(status="stopped", completed_at=utcnow(), pending=None,
+                stopped_candidate_sha=candidate_sha, candidate_diff=candidate_diff,
+                stop_reason=scrub(reason, [self.gateway.secrets.get(run_id, "")]), rollbacks=r["rollbacks"] + 1)
+            for node in r["nodes"].values():
+                if node["status"] == "running":
+                    node.update(status="stopped", finished_at=utcnow(), waiting_for_model=False)
+        self.store.update(run_id, stopped)
         if reason.startswith(("Docker operation failed", "Docker execution exceeded", "Trusted dependency cache", "Workflow failed safely", "GitHub delivery command failed", "GitHub delivery timed out", "GitHub delivery could not reconcile")):
             self.store.update(run_id, lambda r: r.update(platform_failure=True))
         self.store.event(run_id, "safe_stop", reason=scrub(reason, [self.gateway.secrets.get(run_id, "")]), rollback_sha=checkpoint)
@@ -581,6 +597,11 @@ class Engine:
 
     def public_run(self, run: dict) -> dict:
         result = dict(run)
+        # Legacy stopped snapshots can contain a node left marked running.
+        # Present its actual terminal state without rewriting historical events.
+        result["nodes"] = {name: {**node, **({"status": "stopped", "waiting_for_model": False} if run["status"] in TERMINAL and node["status"] == "running" else {})} for name, node in run["nodes"].items()}
+        result["retryable"] = self.can_retry(run)
+        result["observed_at"] = utcnow()
         result["total_repair_cycles"] = sum(event["kind"] == "repair_requested" for event in self.store.events(run["id"]))
         result["total_retries"] = run["retries"] + run.get("retry_attempts", 0)
         if run["id"] in self.segment_started:
@@ -663,15 +684,21 @@ class Engine:
     async def retry(self, run_id: str, request):
         async with self.creation_lock:
             run = self.store.get(run_id)
-            if run["status"] != "stopped" or not run.get("platform_failure") or run.get("retry_attempts", 0) >= 3:
-                raise PolicyError("Only bounded infrastructure failures can be retried; rejection and exhausted source/model budgets remain stopped")
+            if not self.can_retry(run):
+                raise PolicyError("Only bounded infrastructure failures or model timeouts can be retried; rejection and exhausted budgets remain stopped")
             if any(r["status"] not in TERMINAL for r in self.store.list()):
                 raise PolicyError("Another run is active")
-            config = RuntimeConfig.model_validate(run["config"])
+            config = request.config or RuntimeConfig.model_validate(run["config"])
+            if config.limits.max_model_calls <= run["model_calls"] or config.limits.active_minutes * 60 <= run["active_seconds"] or config.limits.max_repair_cycles < run["repair_cycles"]:
+                raise PolicyError("Retry limits must preserve consumed execution and leave a remaining budget")
             if request.api_key:
                 self.gateway.set_key(run_id, request.api_key.get_secret_value(), config.provider)
             if not self.delivery_only(run):
                 await self.gateway.preflight(config, run_id)
+            self.unchanged_checkpoint(run)
+            if config.model_dump() != run["config"]:
+                self.store.update(run_id, lambda r: r.update(config=config.model_dump()))
+                self.store.event(run_id, "configuration_changed", config=config.model_dump(), at_checkpoint=True, reason="Retry with updated execution limits")
             candidate = run["artifacts"].get("implementation", {}).get("source_sha") or run["base_sha"]
             self.workspaces.rollback(run_id, candidate)
             self.store.update(run_id, lambda r: r.update(status="interrupted", completed_at=None, stop_reason=None,
@@ -679,6 +706,14 @@ class Engine:
             self.store.event(run_id, "infrastructure_retry", restored_source_sha=candidate,
                              budgets_preserved=True, attempt=run.get("retry_attempts", 0) + 1)
             self.dispatch(run_id)
+
+    @staticmethod
+    def can_retry(run):
+        model_timeout = (run.get("stop_reason") or "").startswith("Codex call exceeded its timeout")
+        return (run["status"] == "stopped" and (run.get("platform_failure") or model_timeout)
+                and run.get("retry_attempts", 0) < (2 if model_timeout else 3)
+                and run["model_calls"] < run["config"]["limits"]["max_model_calls"]
+                and run["active_seconds"] < run["config"]["limits"]["active_minutes"] * 60)
 
     @staticmethod
     def delivery_only(run):

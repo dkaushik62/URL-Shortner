@@ -5,6 +5,8 @@ import json
 import os
 import re
 import shutil
+import signal
+import subprocess
 from pathlib import Path
 
 import httpx
@@ -152,21 +154,44 @@ class ModelGateway:
         args.append("-")
         proc = await asyncio.create_subprocess_exec(*args, cwd=self.root,
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE, env=self.codex_env())
+            stderr=asyncio.subprocess.PIPE, env=self.codex_env(), start_new_session=os.name != "nt")
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(prompt.encode()), config.limits.call_timeout_seconds)
         except (TimeoutError, asyncio.CancelledError) as error:
-            proc.kill()
-            await proc.wait()
+            await self.terminate_codex(proc)
             if isinstance(error, asyncio.CancelledError):
                 raise
-            raise SafeStop("Codex call exceeded its timeout") from None
+            raise SafeStop(f"Codex call exceeded its timeout ({config.limits.call_timeout_seconds} seconds)") from None
         if len(stdout) > 3_000_000:
             raise SafeStop("Model output exceeded the maximum size")
         if proc.returncode:
             # Never persist raw CLI diagnostics: they may contain account information.
             raise SafeStop("Codex did not complete the call; check CLI sign-in, model access and included usage limits")
         return self.parse_cli_output(stdout)
+
+    @staticmethod
+    async def terminate_codex(proc):
+        if proc.returncode is not None:
+            return
+        try:
+            if os.name == "nt":
+                # The npm launcher can own a native Codex child. Kill only this
+                # captured process tree, never other operator/desktop sessions.
+                executable = str(Path(os.environ.get("SYSTEMROOT", "C:/Windows")) / "System32/taskkill.exe")
+                killer = await asyncio.create_subprocess_exec(executable, "/PID", str(proc.pid), "/T", "/F",
+                    stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+                    creationflags=subprocess.CREATE_NO_WINDOW)
+                await asyncio.wait_for(killer.wait(), 10)
+            else:
+                os.killpg(proc.pid, signal.SIGKILL)
+        except (OSError, TimeoutError):
+            pass
+        try:
+            if proc.returncode is None:
+                proc.kill()
+        except ProcessLookupError:
+            pass
+        await asyncio.wait_for(proc.wait(), 10)
 
     @staticmethod
     def parse_cli_output(stdout: bytes) -> str:
