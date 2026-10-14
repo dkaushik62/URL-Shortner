@@ -30,16 +30,20 @@ trusted runner executed generated Java and independent acceptance checks.
 |---|---|
 | Greenfield `cef8b2f4cbd741be838fc8d6f42f6218` | Stopped after bounded repairs. A generated compile error and then an incomplete trusted offline dependency cache were exposed. The failure is retained. |
 | Greenfield `fcc92f3051df4ef19b8dfc875295e94e` | Successful after two source repairs and an infrastructure retry. 65 JUnit tests and 10 independent HTTP cases passed before local promotion. |
-| Brownfield `9915f2f65342408082cafb6012145005` | Real labelled redirect fault failed validation and was repaired. Revision 1 passed; changing the maximum from 30 to 7 days invalidated outputs and its release approval. Revision 2 exposed a runner timeout; recovery and final evidence are in progress. |
+| Brownfield `9915f2f65342408082cafb6012145005` | Successful: a labelled redirect fault failed validation and was repaired. Revision 1 passed; changing 30 to 7 days invalidated outputs and the release approval. Revision 2 passed 92 JUnit tests and 15 HTTP cases. Three infrastructure retries retained budgets; an obsolete release approval was rejected with HTTP 409. |
+| Ambiguous `88daf6c969d441c79b2f852abb2ec94a` | Successful: browser-created run paused for clarification, then implemented a configurable shared local bucket. A failing HTTP-test fixture triggered one source repair; 100 JUnit tests and 13 HTTP cases passed. The release checkpoint survived a server restart. Local promotion completed after one infrastructure retry. |
 
 The demonstration driver marks automatic decisions as `verification`. They prove
 the approval gate, revision binding and promotion path work, but do not prove a
 person authenticated and approved each change. Interactive decisions are recorded
 separately as `workbench`; this local app does not assert verified human identity.
 
-Further scenario and verification commits append the final outcomes and saved run
-exports here. Failed attempts remain part of the record instead of being replaced
-by a success-only account.
+The follow-up [3d520d6](https://github.com/dkaushik62/URL-Shortner/commit/3d520d6)
+records CLI-event reconciliation, bounded recovery and historical evidence viewing.
+[195acd8](https://github.com/dkaushik62/URL-Shortner/commit/195acd8) adopts the
+validated expiry service. [2e471dd](https://github.com/dkaushik62/URL-Shortner/commit/2e471dd)
+adopts the clarified creation limiter. Fresh-checkout verification is recorded in
+the verification report. Failed attempts remain in the record.
 
 ## Interview route
 

@@ -7,13 +7,21 @@ from datetime import datetime, timedelta, timezone
 import httpx
 
 
-async def acceptance(base: str, scenario: str, max_days: int = 30, rate_limit: int = 20) -> dict:
+async def acceptance(base: str, scenario: str, max_days: int = 30, rate_limit: int = 20, check_legacy: bool = False) -> dict:
     cases = []
 
     def check(name, passed, details=""):
         cases.append({"name": name, "passed": bool(passed), "details": str(details)[:1000]})
 
     async with httpx.AsyncClient(base_url=base, timeout=10, follow_redirects=False, trust_env=False) as client:
+        if check_legacy:
+            legacy = await client.get("/api/urls/Legacy01/analytics")
+            body = legacy.json() if legacy.status_code == 200 else {}
+            check("V1 upgrade preserves historical row and clicks", legacy.status_code == 200 and body.get("clickCount") == 7 and body.get("url") == "https://example.com/legacy")
+            check("V1 historical row remains non-expiring", body.get("expiresAt") is None)
+            redirect = await client.get("/r/Legacy01")
+            clicks = await client.get("/api/urls/Legacy01/analytics")
+            check("V1 historical row redirects and increments after migration", redirect.status_code == 302 and clicks.status_code == 200 and clicks.json().get("clickCount") == 8)
         response = await client.post("/api/urls", json={"url": "https://example.com/engineering?from=acceptance"})
         check("create returns 201", response.status_code == 201, response.status_code)
         if response.status_code != 201:

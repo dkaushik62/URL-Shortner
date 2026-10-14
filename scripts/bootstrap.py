@@ -28,6 +28,7 @@ def main():
     run(str(python_path()), "-m", "pip", "install", "-r", "requirements.txt")
     run("docker", "compose", "up", "-d", "postgres")
     run("docker", "build", "-t", "urlshortner-java-runner:local", "-f", "infra/runner/Dockerfile", ".")
+    run("docker", "build", "-t", "urlshortner-java-runtime:local", "-f", "infra/runtime/Dockerfile", ".")
     run("docker", "build", "-t", "urlshortner-acceptance:local", "-f", "infra/acceptance/Dockerfile", ".")
     run("docker", "build", "-f", "frontend/Dockerfile", "--output", "type=local,dest=frontend/dist", "frontend")
     if (ROOT / "backend" / "src").exists():

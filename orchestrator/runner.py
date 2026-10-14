@@ -17,6 +17,7 @@ from orchestrator.models import scrub
 
 class DockerRunner:
     image = "urlshortner-java-runner:local"
+    runtime_image = "urlshortner-java-runtime:local"
     postgres_image = "postgres:17.6-alpine"
     acceptance_image = "urlshortner-acceptance:local"
 
@@ -45,7 +46,10 @@ class DockerRunner:
             await process.wait()
             if isinstance(error, asyncio.CancelledError):
                 raise
-            raise SafeStop("Docker execution exceeded its time or output limit") from None
+            operation = args[0] if args else "unknown"
+            if "--name" in args:
+                operation += " " + args[args.index("--name") + 1]
+            raise SafeStop(f"Docker execution exceeded its time or output limit ({operation})") from None
         if check and process.returncode:
             raise SafeStop("Docker operation failed: " + scrub(output[-3000:]))
         return process.returncode or 0, scrub(output)
@@ -63,7 +67,7 @@ class DockerRunner:
         name = f"urlshortner-build-{suffix}"
         # Reconcile interrupted Docker operations before retrying a checkpoint.
         for owned in [name, f"urlshortner-testapp-{suffix}", f"urlshortner-testdb-{suffix}", f"urlshortner-checks-{suffix}"]:
-            await self.command("rm", "-f", owned, timeout=20, check=False)
+            await self.command("rm", "-fv", owned, timeout=20, check=False)
         await self.command("network", "rm", f"urlshortner-testnet-{suffix}", timeout=20, check=False)
         output = self.runtime / "runs" / run_id / "output" / uuid.uuid4().hex
         output.mkdir(parents=True, exist_ok=True)
@@ -76,7 +80,7 @@ class DockerRunner:
         try:
             code, log = await self.command(*args, timeout=300, check=False)
         finally:
-            await asyncio.shield(self.command("rm", "-f", name, timeout=20, check=False))
+            await asyncio.shield(self.command("rm", "-fv", name, timeout=20, check=False))
         suites, failed_cases = [], []
         for path in output.rglob("TEST-*.xml"):
             if path.stat().st_size > 1_000_000:
@@ -111,14 +115,21 @@ class DockerRunner:
         result["duration_seconds"] = round(time.monotonic() - started, 3)
         return result
 
-    async def http_checks(self, run_id: str, jar: Path, scenario: str, max_days: int, rate_limit: int):
+    async def http_checks(self, run_id: str, jar: Path, scenario: str, max_days: int, rate_limit: int, upgrade_fixture=False):
         suffix = run_id[:12]
         network, db, app = [f"urlshortner-{part}-{suffix}" for part in ["testnet", "testdb", "testapp"]]
         await self.command("network", "create", "--internal", network, timeout=20)
         try:
+            fixture_mounts = []
+            fixture_environment = []
+            if upgrade_fixture:
+                baseline = self.project / "scenarios/baseline/backend/src/main/resources/db/migration/V1__create_url_service.sql"
+                fixture_mounts = [*self.mount(baseline, "/docker-entrypoint-initdb.d/01-baseline.sql", True),
+                                  *self.mount(self.project / "infra/postgres/upgrade-fixture.sql", "/docker-entrypoint-initdb.d/02-fixture.sql", True)]
+                fixture_environment = ["-e", "SPRING_FLYWAY_BASELINE_ON_MIGRATE=true", "-e", "SPRING_FLYWAY_BASELINE_VERSION=1"]
             await self.command("run", "-d", "--name", db, "--network", network,
                 "--network-alias", "testdb", "--memory", "256m", "--cpus", "1", "--pids-limit", "128",
-                "-e", "POSTGRES_PASSWORD=isolated_test", "-e", "POSTGRES_DB=urls", self.postgres_image, timeout=30)
+                "-e", "POSTGRES_PASSWORD=isolated_test", "-e", "POSTGRES_DB=urls", *fixture_mounts, self.postgres_image, timeout=30)
             for _ in range(30):
                 code, _ = await self.command("exec", db, "pg_isready", "-U", "postgres", timeout=5, check=False)
                 if code == 0:
@@ -131,11 +142,11 @@ class DockerRunner:
                 "-e", "SPRING_DATASOURCE_URL=jdbc:postgresql://testdb:5432/urls",
                 "-e", "SPRING_DATASOURCE_USERNAME=postgres", "-e", "SPRING_DATASOURCE_PASSWORD=isolated_test",
                 "-e", f"SHORTENER_MAX_EXPIRY_DAYS={max_days}", "-e", f"SHORTENER_CREATION_LIMIT={rate_limit}",
-                self.image, "java", "-jar", "/demo/app.jar", timeout=30)
+                *fixture_environment, self.runtime_image, "java", "-jar", "/demo/app.jar", timeout=30)
             _, output = await self.command("run", "--name", f"urlshortner-checks-{suffix}", "--network", network,
                 "--memory", "256m", "--cpus", "1", "--pids-limit", "64", "--read-only",
                 "--cap-drop", "ALL", "--security-opt", "no-new-privileges", self.acceptance_image,
-                "/checks/main.py", "http://testapp:8080", scenario, str(max_days), str(rate_limit), timeout=100)
+                "/checks/main.py", "http://testapp:8080", scenario, str(max_days), str(rate_limit), *(["upgrade"] if upgrade_fixture else []), timeout=100)
             result = json.loads(output.strip())
             if not result["passed"] and any(case["name"] == "isolated application starts" for case in result["cases"]):
                 _, log = await self.command("logs", "--tail", "80", app, timeout=10, check=False)
@@ -145,7 +156,7 @@ class DockerRunner:
             return {"passed": False, "cases": [{"name": "HTTP acceptance completes", "passed": False, "details": type(error).__name__}]}
         finally:
             for name in [app, db, f"urlshortner-checks-{suffix}"]:
-                await asyncio.shield(self.command("rm", "-f", name, timeout=20, check=False))
+                await asyncio.shield(self.command("rm", "-fv", name, timeout=20, check=False))
             await asyncio.shield(self.command("network", "rm", network, timeout=20, check=False))
 
     async def promote(self, run_id: str, max_days=30, rate_limit=20, output_directory=None):
@@ -153,9 +164,9 @@ class DockerRunner:
         if not jar.exists():
             raise SafeStop("Validated application artifact is missing")
         # This only replaces the named demo container, never arbitrary containers.
-        await self.command("compose", "-f", str(self.project / "docker-compose.yml"), "stop", "backend", "proxy", timeout=30, check=False)
-        await self.command("rm", "-f", "urlshortner-demo", timeout=20, check=False)
-        await self.command("rm", "-f", "urlshortner-demo-proxy", timeout=20, check=False)
+        await self.command("compose", "-f", str(self.project / "docker-compose.yml"), "stop", "backend", "proxy", timeout=60, check=False)
+        await self.command("rm", "-fv", "urlshortner-demo", timeout=60, check=False)
+        await self.command("rm", "-f", "urlshortner-demo-proxy", timeout=60, check=False)
         await self.command("network", "create", "--internal", "urlshortner-demo-internal", timeout=20, check=False)
         await self.command("network", "connect", "--alias", "postgres", "urlshortner-demo-internal", "url-shortner-postgres-1", timeout=20, check=False)
         await self.command("run", "-d", "--name", "urlshortner-demo", "--network", "urlshortner-demo-internal",
@@ -166,7 +177,7 @@ class DockerRunner:
             "-e", "SPRING_DATASOURCE_USERNAME=url_app", "-e", "SPRING_DATASOURCE_PASSWORD=local_url_app",
             "-e", "SHORTENER_PUBLIC_BASE_URL=http://127.0.0.1:8000",
             "-e", f"SHORTENER_MAX_EXPIRY_DAYS={max_days}", "-e", f"SHORTENER_CREATION_LIMIT={rate_limit}",
-            self.image, "java", "-jar", "/demo/app.jar", timeout=30)
+            self.runtime_image, "java", "-jar", "/demo/app.jar", timeout=30)
         await self.command("run", "-d", "--name", "urlshortner-demo-proxy", "--network", "url-shortner_default",
             "-p", "127.0.0.1:8080:8080", "--memory", "128m", "--cpus", "1", "--pids-limit", "64",
             "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", self.acceptance_image,

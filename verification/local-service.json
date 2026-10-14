@@ -1,0 +1,236 @@
+{
+  "passed": true,
+  "exit_code": 0,
+  "unit": {
+    "passed": true,
+    "tests": 100,
+    "suites": [
+      {
+        "name": "com.urlshortner.urls.CreationLimitHttpTest",
+        "tests": "4",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.urlshortner.urls.CreationRateLimiterTest",
+        "tests": "4",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.urlshortner.urls.DestinationTest",
+        "tests": "28",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.urlshortner.urls.ExpiryCapTest",
+        "tests": "8",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.urlshortner.urls.ExpiryHttpBoundaryTest",
+        "tests": "5",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.urlshortner.urls.UrlControllerTest",
+        "tests": "36",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.urlshortner.urls.UrlRepositoryTest",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.urlshortner.urls.UrlServiceTest",
+        "tests": "13",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      }
+    ],
+    "failed_cases": []
+  },
+  "log": "To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.\nDaemon will be stopped at the end of the build \n> Task :clean UP-TO-DATE\n> Task :compileJava\n> Task :processResources\n> Task :classes\n> Task :resolveMainClassName\n> Task :bootJar\n> Task :compileTestJava\n> Task :processTestResources NO-SOURCE\n> Task :testClasses\nOpenJDK 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended\n> Task :test\n\nBUILD SUCCESSFUL in 51s\n7 actionable tasks: 6 executed, 1 up-to-date\n",
+  "acceptance": {
+    "passed": true,
+    "cases": [
+      {
+        "name": "create returns 201",
+        "passed": true,
+        "details": "201"
+      },
+      {
+        "name": "creation includes short URL and random code",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "name": "302 redirect preserves destination",
+        "passed": true,
+        "details": "302"
+      },
+      {
+        "name": "concurrent clicks are not lost",
+        "passed": true,
+        "details": "26"
+      },
+      {
+        "name": "analytics includes timestamps",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "name": "unknown link returns 404",
+        "passed": true,
+        "details": "404"
+      },
+      {
+        "name": "invalid scheme rejected",
+        "passed": true,
+        "details": "400"
+      },
+      {
+        "name": "embedded credentials rejected",
+        "passed": true,
+        "details": "400"
+      },
+      {
+        "name": "control characters rejected",
+        "passed": true,
+        "details": "400"
+      },
+      {
+        "name": "missing host rejected",
+        "passed": true,
+        "details": "400"
+      },
+      {
+        "name": "creation rate limiting produces 429",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "name": "rate limit provides Retry-After",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "name": "creation limits do not block redirects",
+        "passed": true,
+        "details": ""
+      }
+    ]
+  },
+  "output_directory": "runs/00000000000000000000000000000000/output/6a74233bd47e479eb54b5f310811d8c4",
+  "duration_seconds": 170.187,
+  "infrastructure_error": "Docker execution exceeded its time or output limit (run)",
+  "expiry_and_upgrade": {
+    "passed": true,
+    "cases": [
+      {
+        "name": "V1 upgrade preserves historical row and clicks",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "name": "V1 historical row remains non-expiring",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "name": "V1 historical row redirects and increments after migration",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "name": "create returns 201",
+        "passed": true,
+        "details": "201"
+      },
+      {
+        "name": "creation includes short URL and random code",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "name": "302 redirect preserves destination",
+        "passed": true,
+        "details": "302"
+      },
+      {
+        "name": "concurrent clicks are not lost",
+        "passed": true,
+        "details": "26"
+      },
+      {
+        "name": "analytics includes timestamps",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "name": "unknown link returns 404",
+        "passed": true,
+        "details": "404"
+      },
+      {
+        "name": "invalid scheme rejected",
+        "passed": true,
+        "details": "400"
+      },
+      {
+        "name": "embedded credentials rejected",
+        "passed": true,
+        "details": "400"
+      },
+      {
+        "name": "control characters rejected",
+        "passed": true,
+        "details": "400"
+      },
+      {
+        "name": "missing host rejected",
+        "passed": true,
+        "details": "400"
+      },
+      {
+        "name": "expiry maximum enforced",
+        "passed": true,
+        "details": "400"
+      },
+      {
+        "name": "past expiry rejected",
+        "passed": true,
+        "details": "400"
+      },
+      {
+        "name": "future expiry accepted",
+        "passed": true,
+        "details": "201"
+      },
+      {
+        "name": "expired link returns 410",
+        "passed": true,
+        "details": "410"
+      },
+      {
+        "name": "expired visits do not count",
+        "passed": true,
+        "details": ""
+      }
+    ]
+  }
+}

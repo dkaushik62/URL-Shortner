@@ -139,3 +139,22 @@ async def test_rejection_does_not_require_model_connection(engine):
     await engine.approve(run["id"], approval(run, False))
     stopped = await settle(engine, run["id"])
     assert stopped["status"] == "stopped" and not engine.runner.promotions
+
+
+async def test_active_time_persists_while_model_is_running(engine):
+    import asyncio
+    original = engine.gateway.generate
+    entered = asyncio.Event()
+    release = asyncio.Event()
+    async def held_call(*args):
+        entered.set()
+        await release.wait()
+        return await original(*args)
+    engine.gateway.generate = held_call
+    run = await engine.create(RunRequest(scenario="greenfield"))
+    await entered.wait()
+    await asyncio.sleep(1.1)
+    consumed = engine.store.get(run["id"])["active_seconds"]
+    assert consumed >= 1
+    await engine.stop(run["id"])
+    assert engine.store.get(run["id"])["active_seconds"] >= consumed

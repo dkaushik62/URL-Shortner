@@ -34,6 +34,13 @@ For the development stages, start with [the build journal](docs/BUILD_JOURNAL.md
 and the branch's commit history. The implementation is on
 `codex/assignment-prototype` while its draft pull request is under review.
 
+The submitted service includes expiration capped at **7 days** and a shared local
+creation limit of **20 requests/minute**, configurable with
+`SHORTENER_CREATION_LIMIT`. Redirects and analytics remain unlimited. The saved
+greenfield baseline has neither enhancement, so the brownfield exercise still
+starts from the original service. See [scenario summaries](docs/SCENARIO_SUMMARIES.md)
+and [verification evidence](verification/REPORT.md).
+
 ### Default live model connection: existing ChatGPT access
 
 Install Codex CLI and sign in using **ChatGPT**, not an API key. A pinned official
@@ -58,6 +65,9 @@ distinguishes ChatGPT subscription access from API-key usage.
 
 1. Open **URL Shortener**, paste an HTTP/HTTPS URL, create a link, follow it and
    refresh its analytics. The business service stores URLs without fetching them.
+   Open **Run History → Recorded demonstration evidence** to inspect the author's
+   actual runs without invoking a model; they are read-only and excluded from your
+   installation's live metrics.
 2. Open **Agent Workbench**, choose **Greenfield**, inspect the requirement and
    execute. Its starter has build configuration and the Spring entry point, but
    no URL creation, redirects, analytics or business migration.

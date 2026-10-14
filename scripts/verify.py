@@ -14,11 +14,15 @@ from scripts.bootstrap import python_path
 async def verify():
     from orchestrator.runner import DockerRunner
     runner = DockerRunner(ROOT, ROOT / ".runtime")
-    result = await runner.validate("0" * 32, ROOT, "greenfield")
+    result = await runner.validate("0" * 32, ROOT, "ambiguous", max_days=7)
+    if result["passed"]:
+        jar = ROOT / ".runtime" / result["output_directory"] / "app.jar"
+        result["expiry_and_upgrade"] = await runner.http_checks("1" * 32, jar, "brownfield", 7, 20, upgrade_fixture=True)
+        result["passed"] = result["expiry_and_upgrade"]["passed"]
     output = ROOT / "verification" / "local-service.json"
     output.parent.mkdir(exist_ok=True)
     output.write_text(json.dumps(result, indent=2), encoding="utf-8")
-    print(json.dumps({"java_tests": result["unit"], "http_checks": result["acceptance"], "passed": result["passed"]}, indent=2))
+    print(json.dumps({"java_tests": result["unit"], "http_checks": result["acceptance"], "expiry_and_upgrade": result.get("expiry_and_upgrade"), "passed": result["passed"]}, indent=2))
     return result["passed"]
 
 

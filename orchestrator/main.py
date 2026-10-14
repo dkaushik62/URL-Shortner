@@ -133,9 +133,10 @@ def create_app(injected_engine=None):
         recoveries = [r["recovery_seconds"] for r in runs if r.get("recovery_seconds") is not None]
         return {"runs": len(runs), "completed": len(ended), "successful": len(succeeded),
                 "success_rate": len(succeeded) / len(ended) if ended else None,
-                "retries": sum(r["retries"] for r in runs), "rollbacks": sum(r["rollbacks"] for r in runs),
+                "retries": sum(r["retries"] + r.get("retry_attempts", 0) for r in runs), "rollbacks": sum(r["rollbacks"] for r in runs),
                 "mean_recovery_seconds": sum(recoveries) / len(recoveries) if recoveries else None,
                 "definitions": {"success_rate": "Successful runs / all terminal runs, including operator stops and rejection",
+                                "retries": "Model retries plus explicit infrastructure checkpoint retries",
                                 "mean_recovery_seconds": "First failed validation to passing validation, for recovered runs only"}}
 
     @app.get("/engineering/evidence")
@@ -153,7 +154,11 @@ def create_app(injected_engine=None):
     @app.get("/engineering/runs/{run_id}")
     async def get_run(run_id: str):
         run = engine().public_run(engine().store.get(run_id))
-        return {**run, "diff": run.get("candidate_diff") if run["status"] == "stopped" and run.get("candidate_diff") else engine().workspaces.diff(run_id), "audit_chain_valid": engine().store.verify_chain(run_id)}
+        available = engine().workspaces.path(run_id).exists()
+        diff = run.get("candidate_diff") if run["status"] == "stopped" else None
+        if not diff:
+            diff = engine().workspaces.diff(run_id) if available else run.get("artifacts", {}).get("summary", {}).get("diff", "")
+        return {**run, "diff": diff, "workspace_available": available, "audit_chain_valid": engine().store.verify_chain(run_id)}
 
     @app.get("/engineering/runs/{run_id}/artifacts/{name}")
     async def artifact(run_id: str, name: str):

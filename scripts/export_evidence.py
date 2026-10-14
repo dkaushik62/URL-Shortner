@@ -30,6 +30,8 @@ def main():
         if not diff and candidate and candidate != run["base_sha"]:
             diff = subprocess.run(["git", "diff", run["base_sha"], candidate, "--", "backend"], cwd=workspaces.path(run["id"]), text=True, capture_output=True, check=True).stdout
         run = {**run, "diff": diff, "audit_chain_valid": store.verify_chain(run["id"]),
+               "total_repair_cycles": sum(event["kind"] == "repair_requested" for event in store.events(run["id"])),
+               "total_retries": run["retries"] + run.get("retry_attempts", 0),
                "end_to_end_seconds": round((datetime.fromisoformat(run["completed_at"]) - datetime.fromisoformat(run["created_at"])).total_seconds(), 3)}
         bundle = {"kind": "recorded_live_run", "exported_at": utcnow(), "run": run, "events": store.events(run["id"]),
                   "provenance": {"model_output": "Live ChatGPT-authenticated Codex CLI", "test_execution": "Real isolated Docker execution", "automatic_decisions": "verification; not authenticated human identity", "source_sha_scope": "isolated run workspace Git repository", "limitations": "Local event chain, not an independently signed archive"}}

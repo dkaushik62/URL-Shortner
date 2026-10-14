@@ -1,0 +1,19 @@
+{
+  "passed": true,
+  "checks": {
+    "read_only_root": true,
+    "non_root_user": true,
+    "memory_cpu_process_bounds": true,
+    "capabilities_dropped": true,
+    "no_privilege_escalation": true,
+    "only_internal_networks": true,
+    "no_docker_socket_or_host_auth_mount": true,
+    "no_model_provider_credentials": true,
+    "no_direct_published_app_ports": true,
+    "external_connection_blocked": true
+  },
+  "networks": {
+    "urlshortner-demo-internal": true
+  },
+  "outbound_probe_exit": 0
+}

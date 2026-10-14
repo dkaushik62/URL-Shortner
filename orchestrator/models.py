@@ -25,6 +25,17 @@ def scrub(text: str, secrets: list[str] = ()) -> str:
     return re.sub(r"\b(?:sk-|sk-ant-)[A-Za-z0-9_-]{8,}", "[REDACTED]", text)
 
 
+def claude_schema(value=None):
+    # Provider grammar omits unsupported size constraints; Pydantic still enforces
+    # the original limits on every returned file and stage output.
+    value = AgentOutput.model_json_schema() if value is None else value
+    if isinstance(value, dict):
+        return {key: claude_schema(child) for key, child in value.items() if key not in {"minLength", "maxLength", "minItems", "maxItems", "minimum", "maximum"}}
+    if isinstance(value, list):
+        return [claude_schema(child) for child in value]
+    return value
+
+
 class ModelGateway:
     def __init__(self, runtime_root: Path, allow_billed: bool = False):
         self.root = runtime_root
@@ -49,6 +60,19 @@ class ModelGateway:
         self.secrets.pop(run_id, None)
         self.secret_providers.pop(run_id, None)
 
+    @staticmethod
+    def codex_command() -> list[str]:
+        executable = shutil.which("codex")
+        if not executable:
+            raise SafeStop("Install Codex CLI and sign in using ChatGPT before starting live runs")
+        if os.name == "nt" and Path(executable).suffix.lower() in {".cmd", ".bat"}:
+            entry = Path(executable).parent / "node_modules/@openai/codex/bin/codex.js"
+            node = shutil.which("node")
+            if not node or not entry.is_file():
+                raise SafeStop("The Windows npm Codex launcher requires Node and the official @openai/codex installation")
+            return [node, str(entry)]
+        return [executable]
+
     async def preflight(self, config: RuntimeConfig, run_id: str | None = None):
         if config.provider != "codex":
             if not self.allow_billed:
@@ -58,10 +82,7 @@ class ModelGateway:
             if self.secret_providers.get(run_id or "") != config.provider:
                 raise SafeStop("Provide a new key for the selected provider; keys are never reused across providers")
             return
-        executable = shutil.which("codex")
-        if not executable:
-            raise SafeStop("Install Codex CLI and sign in using ChatGPT before starting live runs")
-        proc = await asyncio.create_subprocess_exec(executable, "login", "status",
+        proc = await asyncio.create_subprocess_exec(*self.codex_command(), "login", "status",
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=self.codex_env())
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), 20)
@@ -111,7 +132,7 @@ class ModelGateway:
         return output
 
     async def codex(self, config: RuntimeConfig, prompt: str) -> str:
-        args = [shutil.which("codex") or "codex", "exec", "--ignore-user-config", "--ignore-rules",
+        args = [*self.codex_command(), "exec", "--ignore-user-config", "--ignore-rules",
                 "--ephemeral", "--strict-config", "--sandbox", "read-only", "--skip-git-repo-check",
                 "--json", "--color", "never", "--output-schema", str(self.schema),
                 "-c", 'web_search="disabled"', "-c", 'approval_policy="never"',
@@ -176,6 +197,8 @@ class ModelGateway:
                           "text": {"format": {"type": "json_schema", "name": "engineering_stage",
                                               "strict": True, "schema": AgentOutput.model_json_schema()}}})
                 if response.status_code != 200:
+                    if response.status_code in {429, 500, 502, 503, 504}:
+                        raise httpx.TransportError(f"OpenAI temporary HTTP {response.status_code}")
                     raise SafeStop(f"OpenAI request failed (HTTP {response.status_code}); no provider fallback was attempted")
                 body = response.json()
                 return "".join(c.get("text", "") for output in body.get("output", [])
@@ -183,8 +206,10 @@ class ModelGateway:
             response = await client.post("https://api.anthropic.com/v1/messages",
                 headers={"x-api-key": key, "anthropic-version": "2023-06-01"},
                 json={"model": config.model, "max_tokens": 16000,
-                      "system": "Return valid JSON matching this schema: " + json.dumps(AgentOutput.model_json_schema()),
+                      "output_config": {"format": {"type": "json_schema", "schema": claude_schema()}},
                       "messages": [{"role": "user", "content": prompt}]})
             if response.status_code != 200:
+                if response.status_code in {429, 500, 502, 503, 504}:
+                    raise httpx.TransportError(f"Claude temporary HTTP {response.status_code}")
                 raise SafeStop(f"Claude request failed (HTTP {response.status_code}); no provider fallback was attempted")
             return "".join(c.get("text", "") for c in response.json().get("content", []) if c.get("type") == "text")

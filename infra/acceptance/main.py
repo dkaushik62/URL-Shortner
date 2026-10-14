@@ -23,7 +23,7 @@ async def main():
         result = {"passed": False, "cases": [{"name": "isolated application starts", "passed": False, "details": "Health check timed out"}]}
     else:
         try:
-            result = await acceptance(base, scenario, max_days, limit)
+            result = await acceptance(base, scenario, max_days, limit, check_legacy=len(sys.argv) > 5 and sys.argv[5] == "upgrade")
         except httpx.HTTPError as error:
             result = {"passed": False, "cases": [{"name": "HTTP acceptance completes", "passed": False, "details": type(error).__name__}]}
     print(json.dumps(result))

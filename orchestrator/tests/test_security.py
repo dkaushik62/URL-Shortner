@@ -75,6 +75,12 @@ async def test_official_api_adapter_transport_and_error_redaction(tmp_path, monk
     assert result.summary == "transport test only"
     assert observed[0].url.host == ("api.openai.com" if provider == "openai" else "api.anthropic.com")
     assert "TRANSPORT-TEST-KEY" not in observed[0].content.decode()
+    request_body = json.loads(observed[0].content)
+    if provider == "claude":
+        assert request_body["output_config"]["format"]["type"] == "json_schema"
+        assert "maxLength" not in json.dumps(request_body["output_config"])
+    else:
+        assert request_body["text"]["format"]["strict"] is True
 
 
 def test_audit_detects_event_tampering(engine):

@@ -1,0 +1,81 @@
+{
+  "passed": false,
+  "exit_code": 0,
+  "unit": {
+    "passed": true,
+    "tests": 100,
+    "suites": [
+      {
+        "name": "com.urlshortner.urls.CreationLimitHttpTest",
+        "tests": "4",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.urlshortner.urls.CreationRateLimiterTest",
+        "tests": "4",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.urlshortner.urls.DestinationTest",
+        "tests": "28",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.urlshortner.urls.ExpiryCapTest",
+        "tests": "8",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.urlshortner.urls.ExpiryHttpBoundaryTest",
+        "tests": "5",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.urlshortner.urls.UrlControllerTest",
+        "tests": "36",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.urlshortner.urls.UrlRepositoryTest",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.urlshortner.urls.UrlServiceTest",
+        "tests": "13",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      }
+    ],
+    "failed_cases": []
+  },
+  "log": "To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.\nDaemon will be stopped at the end of the build \n> Task :clean UP-TO-DATE\n> Task :compileJava\n> Task :processResources\n> Task :classes\n> Task :resolveMainClassName\n> Task :bootJar\n> Task :compileTestJava\n> Task :processTestResources NO-SOURCE\n> Task :testClasses\nOpenJDK 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended\n> Task :test\n\nBUILD SUCCESSFUL in 51s\n7 actionable tasks: 6 executed, 1 up-to-date\n",
+  "acceptance": {
+    "passed": false,
+    "cases": [
+      {
+        "name": "HTTP runner infrastructure",
+        "passed": false,
+        "details": "Docker execution exceeded its time or output limit (run)"
+      }
+    ]
+  },
+  "output_directory": "runs/00000000000000000000000000000000/output/6a74233bd47e479eb54b5f310811d8c4",
+  "duration_seconds": 170.187,
+  "infrastructure_error": "Docker execution exceeded its time or output limit (run)"
+}

@@ -329,7 +329,13 @@ class Engine:
         self.begin(state, "promotion")
         journal = self.project / ".runtime" / "runs" / run["id"] / "promotion.json"
         target_hash = self.workspaces.directory_fingerprint(self.project / "backend")
-        if not journal.exists() and target_hash != run["target_fingerprint"]:
+        recorded = json.loads(journal.read_text()) if journal.exists() else None
+        allowed_hashes = {run["target_fingerprint"]}
+        if recorded:
+            if recorded["source_fingerprint"] != tests["fingerprint"]:
+                raise SafeStop("Interrupted promotion belongs to a different source artifact")
+            allowed_hashes.add(tests["fingerprint"])
+        if target_hash not in allowed_hashes:
             raise SafeStop("The submitted backend changed outside this run; promotion would overwrite unrelated changes")
         if not journal.exists():
             journal.write_text(canonical({"phase": "prepared", "source_fingerprint": tests["fingerprint"], "previous_fingerprint": target_hash}), encoding="utf-8")
@@ -420,7 +426,17 @@ class Engine:
     async def execute(self, run_id: str, resume=None):
         run = self.store.get(run_id)
         start = time.monotonic()
+        last_accounted = start
         self.segment_started[run_id] = start
+        async def account_active_time():
+            nonlocal last_accounted
+            while True:
+                await asyncio.sleep(1)
+                current = time.monotonic()
+                self.store.update(run_id, lambda r: r.update(active_seconds=round(r["active_seconds"] + current - last_accounted, 3)))
+                last_accounted = current
+                self.segment_started[run_id] = current
+        budget_clock = asyncio.create_task(account_active_time())
         self.store.update(run_id, lambda r: r.update(status="running"))
         graph_config = {"configurable": {"thread_id": f'{run_id}:r{run["revision"]}'}, "recursion_limit": 60}
         try:
@@ -442,7 +458,9 @@ class Engine:
             self.store.event(run_id, "workflow_error", error_type=type(error).__name__, locations=locations)
             await self.safe_stop(run_id, f"Workflow failed safely ({type(error).__name__}); inspect server diagnostics")
         finally:
-            self.store.update(run_id, lambda r: r.update(active_seconds=round(r["active_seconds"] + time.monotonic() - start, 3)))
+            budget_clock.cancel()
+            await asyncio.gather(budget_clock, return_exceptions=True)
+            self.store.update(run_id, lambda r: r.update(active_seconds=round(r["active_seconds"] + time.monotonic() - last_accounted, 3)))
             self.segment_started.pop(run_id, None)
 
     async def safe_stop(self, run_id: str, reason: str):
@@ -481,6 +499,8 @@ class Engine:
 
     def public_run(self, run: dict) -> dict:
         result = dict(run)
+        result["total_repair_cycles"] = sum(event["kind"] == "repair_requested" for event in self.store.events(run["id"]))
+        result["total_retries"] = run["retries"] + run.get("retry_attempts", 0)
         if run["id"] in self.segment_started:
             result["active_seconds"] = round(run["active_seconds"] + time.monotonic() - self.segment_started[run["id"]], 3)
         result["end_to_end_seconds"] = round((datetime.fromisoformat(run.get("completed_at") or utcnow()) - datetime.fromisoformat(run["created_at"])).total_seconds(), 3)
@@ -506,6 +526,7 @@ class Engine:
 
     async def approve(self, run_id: str, request):
         run = self.store.get(run_id)
+        self.safe_text(run_id, request.reason)
         pending = run.get("pending") or {}
         if run["status"] != "awaiting_approval" or request.expected_revision != run["revision"] or request.approval_id != pending.get("approval_id") or request.artifact_hash != pending.get("artifact_hash"):
             self.store.event(run_id, "stale_approval_rejected", supplied_revision=request.expected_revision)
