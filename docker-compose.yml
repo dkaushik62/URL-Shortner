@@ -23,10 +23,12 @@ services:
     build:
       context: backend
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/urls
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${SHORTENER_DATABASE_NAME:-urls}
       SPRING_DATASOURCE_USERNAME: url_app
       SPRING_DATASOURCE_PASSWORD: local_url_app
       SHORTENER_PUBLIC_BASE_URL: http://127.0.0.1:8000
+      SHORTENER_MAX_EXPIRY_DAYS: ${SHORTENER_MAX_EXPIRY_DAYS:-7}
+      SHORTENER_CREATION_LIMIT: ${SHORTENER_CREATION_LIMIT:-20}
     networks:
       business:
         aliases: [demoapp]

@@ -47,8 +47,9 @@ class FakeRunner:
         passed = self.results.pop(0) if len(self.results) > 1 else self.results[0]
         return {"passed": passed, "unit": {"passed": passed, "tests": 1}, "acceptance": {"passed": passed, "cases": []},
                 "log": "TEST DOUBLE", "exit_code": 0 if passed else 1, "duration_seconds": .001, "output_directory": directory}
-    async def promote(self, run_id, max_days=30, rate_limit=20, output_directory=None):
+    async def promote(self, run_id, max_days=30, rate_limit=20, output_directory=None, **options):
         self.promotions.append((run_id, max_days))
+        return "urls"
 
 
 @pytest.fixture

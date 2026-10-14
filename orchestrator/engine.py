@@ -341,17 +341,25 @@ class Engine:
             journal.write_text(canonical({"phase": "prepared", "source_fingerprint": tests["fingerprint"], "previous_fingerprint": target_hash}), encoding="utf-8")
         previous_file = self.project / ".runtime" / "demo.json"
         previous = json.loads(previous_file.read_text()) if previous_file.exists() else None
+        baseline_file = self.project / ".runtime/baseline.json"
+        baseline = json.loads(baseline_file.read_text()) if baseline_file.exists() else None
+        if run["scenario"] == "brownfield" and not baseline:
+            raise SafeStop("Promote a fresh greenfield run first so brownfield has a matching source and database baseline")
+        base_database = (baseline if run["scenario"] == "brownfield" else previous or {}).get("database_name", "urls")
         try:
-            await self.runner.promote(run["id"], run["max_expiry_days"], output_directory=tests["output_directory"])
+            database_name = await self.runner.promote(run["id"], run["max_expiry_days"], output_directory=tests["output_directory"], scenario=run["scenario"], base_database=base_database)
             self.workspaces.accept(run["id"], run["scenario"])
             journal.write_text(canonical({"phase": "source_adopted", "source_fingerprint": tests["fingerprint"]}), encoding="utf-8")
         except Exception:
             if previous:
-                await self.runner.promote(previous["run_id"], previous["max_expiry_days"], output_directory=previous["output_directory"])
+                await self.runner.promote(previous["run_id"], previous["max_expiry_days"], output_directory=previous["output_directory"], database_name=previous.get("database_name", "urls"))
                 self.store.event(run["id"], "deployment_rollback", previous_run_id=previous["run_id"])
             raise
-        previous_file.write_text(canonical({"run_id": run["id"], "max_expiry_days": run["max_expiry_days"], "source_sha": self.workspaces.head(run["id"]), "output_directory": tests["output_directory"]}), encoding="utf-8")
-        receipt = {"source_sha": self.workspaces.head(run["id"]), "jar_sha256": tests["jar_sha256"], "health_check": "passed", "at": utcnow()}
+        demo = {"run_id": run["id"], "max_expiry_days": run["max_expiry_days"], "database_name": database_name, "source_sha": self.workspaces.head(run["id"]), "output_directory": tests["output_directory"]}
+        previous_file.write_text(canonical(demo), encoding="utf-8")
+        if run["scenario"] == "greenfield":
+            baseline_file.write_text(canonical(demo), encoding="utf-8")
+        receipt = {"source_sha": self.workspaces.head(run["id"]), "database_name": database_name, "jar_sha256": tests["jar_sha256"], "health_check": "passed", "at": utcnow()}
         self.store.record_receipt(run["id"], operation, receipt)
         self.finish(state, "promotion", receipt)
         return {}

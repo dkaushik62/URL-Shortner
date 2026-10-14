@@ -168,7 +168,17 @@ class DockerRunner:
                 await asyncio.shield(self.command("rm", "-fv", name, timeout=20, check=False))
             await asyncio.shield(self.command("network", "rm", network, timeout=20, check=False))
 
-    async def promote(self, run_id: str, max_days=30, rate_limit=20, output_directory=None):
+    async def prepare_database(self, run_id: str, scenario: str, base_database: str):
+        if not re.fullmatch(r"[0-9a-f]{32}", run_id) or not re.fullmatch(r"urls(?:_[0-9a-f]{32})?", base_database):
+            raise SafeStop("Invalid business database identity")
+        database = "urls_" + run_id
+        _, existing = await self.command("exec", "url-shortner-postgres-1", "psql", "-U", "workbench", "-d", "workbench", "-Atc", f"SELECT 1 FROM pg_database WHERE datname = '{database}'", timeout=20)
+        if existing.strip() != "1":
+            template = "" if scenario == "greenfield" else f" TEMPLATE {base_database}"
+            await self.command("exec", "url-shortner-postgres-1", "psql", "-U", "workbench", "-d", "workbench", "-v", "ON_ERROR_STOP=1", "-c", f"CREATE DATABASE {database}{template} OWNER url_app", timeout=60)
+        return database
+
+    async def promote(self, run_id: str, max_days=30, rate_limit=20, output_directory=None, scenario="ambiguous", base_database="urls", database_name=None):
         jar = self.runtime / output_directory / "app.jar" if output_directory else self.runtime / "runs" / run_id / "output" / "app.jar"
         if not jar.exists():
             raise SafeStop("Validated application artifact is missing")
@@ -176,6 +186,10 @@ class DockerRunner:
         await self.command("compose", "-f", str(self.project / "docker-compose.yml"), "stop", "backend", "proxy", timeout=60, check=False)
         await self.command("rm", "-fv", "urlshortner-demo", timeout=60, check=False)
         await self.command("rm", "-f", "urlshortner-demo-proxy", timeout=60, check=False)
+        if database_name is None:
+            database_name = await self.prepare_database(run_id, scenario, base_database)
+        if not re.fullmatch(r"urls(?:_[0-9a-f]{32})?", database_name):
+            raise SafeStop("Invalid recorded demo database identity")
         await self.command("network", "create", "--internal", "urlshortner-demo-internal", timeout=20, check=False)
         await self.command("network", "connect", "--alias", "postgres", "urlshortner-demo-internal", "url-shortner-postgres-1", timeout=20, check=False)
         await self.command("run", "-d", "--name", "urlshortner-demo", "--network", "urlshortner-demo-internal",
@@ -183,7 +197,7 @@ class DockerRunner:
             "--read-only", "--tmpfs", "/tmp:rw,noexec,nosuid,size=128m", "--cap-drop", "ALL",
             "--security-opt", "no-new-privileges", *self.mount(jar, "/demo/app.jar", True),
             *self.syscall_policy(),
-            "-e", "SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/urls",
+            "-e", f"SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/{database_name}",
             "-e", "SPRING_DATASOURCE_USERNAME=url_app", "-e", "SPRING_DATASOURCE_PASSWORD=local_url_app",
             "-e", "SHORTENER_PUBLIC_BASE_URL=http://127.0.0.1:8000",
             "-e", f"SHORTENER_MAX_EXPIRY_DAYS={max_days}", "-e", f"SHORTENER_CREATION_LIMIT={rate_limit}",
@@ -197,7 +211,7 @@ class DockerRunner:
             for _ in range(90):
                 try:
                     if (await client.get("http://127.0.0.1:8080/actuator/health")).status_code == 200:
-                        return
+                        return database_name
                 except httpx.HTTPError:
                     pass
                 await asyncio.sleep(0.5)
