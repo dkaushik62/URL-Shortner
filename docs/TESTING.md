@@ -5,6 +5,10 @@ Run `python scripts/verify.py` after setup. It invokes no model and no billed pr
 - Python tests exercise graph branches/joins, source-repair limits, stale approvals,
   clarification, re-planning, receipt reuse, single-run scheduling, workspace boundaries,
   CSRF/Origin controls, redaction, audit tampering and opt-in API transport.
+- Timeout recovery tests verify the 15-minute default/30-minute cap, terminal node
+  state, preserved approvals/call/time budgets, bounded retries and persisted
+  activity events. A trusted parent/child process fixture verifies process-tree
+  cleanup on the executing OS; it does not invoke a model.
 - State-machine tests use explicitly named doubles. They validate orchestration logic,
   not successful AI generation or Java execution. Application code never uses those doubles.
 - The Docker runner compiles the actual Java candidate and executes its JUnit suite.

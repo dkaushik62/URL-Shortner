@@ -58,14 +58,24 @@ needs fresh credentials before continuing. Codex uses the operator's own login.
 - Two source repair cycles per requirement revision. A revision change still shares
   the overall model-call and active-time limits; previous repairs remain in events.
 - Fixed command timeouts and output limits; disposable build/test environments.
+- Model calls default to 900 seconds, configurable from 30 to 1800 seconds. The
+  remaining active-run budget can expire first. Every 15 seconds a persisted
+  activity event refreshes elapsed time; it does not imply model token progress.
 - Operation receipts prevent replayed stages from blindly applying another patch.
 - Restarted workers become interrupted. Resume reconciles checkpoint state and
   removes only that run's named interrupted Docker containers.
 - Infrastructure repair can be retried at most three times with original budgets
   and the last recorded candidate. Rejection and exhausted source/model budgets
   remain stopped.
+- Codex response timeouts support at most two explicit checkpoint retries. The
+  operator can change runtime configuration at this checkpoint; the journal records
+  it and prior model-call/time consumption is retained. Approved artifacts and
+  operation receipts are reused. A canceled/timed-out Codex call terminates its own
+  launcher and children, including the Windows npm/native process tree.
 - Safe-stop restores the last validated workspace checkpoint or its trusted baseline,
   clears memory keys, and retains artifacts/events.
+- Running nodes become stopped with the run. Legacy terminal snapshots are displayed
+  with terminal node states without rewriting their original audit events.
 
 Promotion records a journal and receipt and validates the jar/source fingerprint.
 Health failure restores the previous demo jar when one exists. Additive database

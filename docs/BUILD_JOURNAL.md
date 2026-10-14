@@ -4,6 +4,20 @@ The original implementation branch was `codex/assignment-prototype`, merged into
 `main` through PR #1 with its stage commits retained. The repository stays private;
 the owner must grant the interviewer access. Subsequent changes use separate PRs.
 
+## 2026-10-15: model timeout and checkpoint recovery
+
+Run `9ed4825c0fbe47acafdd6a1cb5559c35` submitted the error-code, centralized exception
+handling and logging requirement. Its implementation call hit the original
+240-second deadline after planning and change approval. The run stopped safely,
+but a stale node status made the graph appear to remain running.
+
+The platform fix raises the default response limit to 15 minutes, exposes a
+30-minute maximum, adds bounded checkpoint retry and elapsed activity reporting,
+and terminates the owned CLI process tree on cancellation. The overall 30-minute
+budget and model-call/repair caps remain in force. The original run was retried
+through Chrome with its approved plan and consumed budgets retained. Validation
+and live-run outcomes are distinguished in [timeout recovery evidence](../verification/TIMEOUT_RECOVERY.md).
+
 ## 2026-10-15: current-project enhancements and GitHub PR delivery
 
 The operator requested an enhancement mode that accepts custom requirements and
@@ -15,8 +29,8 @@ Live documentation-only run `aeddd134cf2d44d59db0fa37436686f6` generated one bac
 documentation page, passed 100 Java tests and 39 HTTP checks, preserved its PR
 approval across a server restart, and created draft PR #2 through the Workbench.
 A second real delivery reconciled the same PR. The run finished without local
-promotion. The error-code/exception/logging enhancement remains for the operator
-to submit. [Full verification](../verification/ENHANCEMENT_REPORT.md).
+promotion. The operator then submitted the error-code/exception/logging enhancement
+as the separate run described above. [Full verification](../verification/ENHANCEMENT_REPORT.md).
 
 ## Reading the implementation
 
