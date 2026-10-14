@@ -1,0 +1,9 @@
+{
+  "name": "engineering-workbench",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {"dev": "vite --host 127.0.0.1", "build": "tsc --noEmit && vite build", "typecheck": "tsc --noEmit"},
+  "dependencies": {"react": "19.3.0", "react-dom": "19.3.0", "lucide-react": "1.57.0"},
+  "devDependencies": {"@vitejs/plugin-react": "6.1.2", "vite": "8.3.4", "typescript": "7.0.2", "tailwindcss": "4.3.3", "@tailwindcss/vite": "4.3.3", "@types/react": "^19.0.0", "@types/react-dom": "^19.0.0"}
+}
