@@ -385,6 +385,8 @@ class Engine:
     async def _create(self, request: RunRequest) -> dict:
         if any(run["status"] not in TERMINAL for run in self.store.list()):
             raise PolicyError("Only one active or waiting run is allowed; stop or finish it first")
+        if request.scenario == "brownfield" and isinstance(self.runner, DockerRunner) and not (self.project / ".runtime/baseline.json").exists():
+            raise PolicyError("Promote a fresh greenfield run first to establish the matching source and business database baseline; saved brownfield evidence is already inspectable")
         run_id = uuid.uuid4().hex
         if request.api_key:
             self.gateway.set_key(run_id, request.api_key.get_secret_value(), request.config.provider)

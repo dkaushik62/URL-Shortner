@@ -158,3 +158,11 @@ async def test_active_time_persists_while_model_is_running(engine):
     assert consumed >= 1
     await engine.stop(run["id"])
     assert engine.store.get(run["id"])["active_seconds"] >= consumed
+
+
+async def test_live_brownfield_missing_database_baseline_fails_before_model_use(engine):
+    from orchestrator.runner import DockerRunner
+    engine.runner = DockerRunner(engine.project, engine.project / ".runtime")
+    with pytest.raises(PolicyError, match="fresh greenfield"):
+        await engine.create(RunRequest(scenario="brownfield"))
+    assert engine.gateway.stages == [] and engine.store.list() == []

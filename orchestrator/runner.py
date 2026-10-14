@@ -73,7 +73,7 @@ class DockerRunner:
         name = f"urlshortner-build-{suffix}"
         # Reconcile interrupted Docker operations before retrying a checkpoint.
         for owned in [name, f"urlshortner-testapp-{suffix}", f"urlshortner-testdb-{suffix}", f"urlshortner-checks-{suffix}"]:
-            await self.command("rm", "-fv", owned, timeout=20, check=False)
+            await self.command("rm", "-fv", owned, timeout=60, check=False)
         await self.command("network", "rm", f"urlshortner-testnet-{suffix}", timeout=20, check=False)
         output = self.runtime / "runs" / run_id / "output" / uuid.uuid4().hex
         output.mkdir(parents=True, exist_ok=True)
@@ -87,7 +87,7 @@ class DockerRunner:
         try:
             code, log = await self.command(*args, timeout=300, check=False)
         finally:
-            await asyncio.shield(self.command("rm", "-fv", name, timeout=20, check=False))
+            await asyncio.shield(self.command("rm", "-fv", name, timeout=60, check=False))
         suites, failed_cases = [], []
         for path in output.rglob("TEST-*.xml"):
             if path.stat().st_size > 1_000_000:
@@ -165,7 +165,7 @@ class DockerRunner:
             return {"passed": False, "cases": [{"name": "HTTP acceptance completes", "passed": False, "details": type(error).__name__}]}
         finally:
             for name in [app, db, f"urlshortner-checks-{suffix}"]:
-                await asyncio.shield(self.command("rm", "-fv", name, timeout=20, check=False))
+                await asyncio.shield(self.command("rm", "-fv", name, timeout=60, check=False))
             await asyncio.shield(self.command("network", "rm", network, timeout=20, check=False))
 
     async def prepare_database(self, run_id: str, scenario: str, base_database: str):
