@@ -1,7 +1,7 @@
-FROM gradle:8.14.3-jdk21 AS build
+FROM urlshortner-java-runner:local AS build
 WORKDIR /app
 COPY --chown=gradle:gradle . .
-RUN gradle --no-daemon test bootJar
+RUN --network=none gradle --offline --no-daemon test bootJar
 FROM eclipse-temurin:21-jre-alpine
 RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app

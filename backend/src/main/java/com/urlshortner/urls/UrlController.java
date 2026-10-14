@@ -1,18 +1,24 @@
 package com.urlshortner.urls;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 public class UrlController {
-    public record CreateRequest(@ValidDestination JsonNode url) {}
-    public record Created(String code, String shortUrl, String url, Instant createdAt) {}
-    public record Analytics(String code, String url, Instant createdAt, long clickCount, Instant lastAccessedAt) {}
+    public record CreateRequest(@ValidDestination JsonNode url, JsonNode expiresAt) {}
+    public record Created(String code, String shortUrl, String url, Instant createdAt,
+            @JsonInclude(JsonInclude.Include.ALWAYS) Instant expiresAt) {}
+    public record Analytics(String code, String url, Instant createdAt, long clickCount,
+            Instant lastAccessedAt, @JsonInclude(JsonInclude.Include.ALWAYS) Instant expiresAt) {}
 
     private final UrlService service;
     private final String publicBaseUrl;
@@ -27,12 +33,24 @@ public class UrlController {
         this.publicBaseUrl = publicBaseUrl.replaceAll("/+$", "");
     }
 
+    static Instant parseExpiry(JsonNode value) {
+        if (value == null || value.isNull()) return null;
+        if (!value.isTextual()) throw new IllegalArgumentException("Invalid expiry type");
+        try {
+            OffsetDateTime parsed = OffsetDateTime.parse(value.textValue());
+            if (!parsed.getOffset().equals(ZoneOffset.UTC)) throw new IllegalArgumentException("Expiry must be UTC");
+            return parsed.toInstant();
+        } catch (DateTimeParseException exception) {
+            throw new IllegalArgumentException("Invalid expiry", exception);
+        }
+    }
+
     @PostMapping("/api/urls")
     public ResponseEntity<Created> create(@Valid @RequestBody CreateRequest body) {
-        UrlRepository.StoredUrl saved = service.create(body.url().textValue());
+        var saved = service.create(body.url().textValue(), parseExpiry(body.expiresAt()));
         String shortUrl = publicBaseUrl + "/r/" + saved.code();
-        return ResponseEntity.created(URI.create(shortUrl))
-                .body(new Created(saved.code(), shortUrl, saved.url(), saved.createdAt()));
+        return ResponseEntity.created(URI.create(shortUrl)).body(new Created(
+                saved.code(), shortUrl, saved.url(), saved.createdAt(), saved.expiresAt()));
     }
 
     @GetMapping("/r/{code}")
@@ -42,7 +60,8 @@ public class UrlController {
 
     @GetMapping("/api/urls/{code}/analytics")
     public Analytics analytics(@PathVariable("code") String code) {
-        UrlRepository.StoredUrl saved = service.analytics(code);
-        return new Analytics(saved.code(), saved.url(), saved.createdAt(), saved.clickCount(), saved.lastAccessedAt());
+        var saved = service.analytics(code);
+        return new Analytics(saved.code(), saved.url(), saved.createdAt(), saved.clickCount(),
+                saved.lastAccessedAt(), saved.expiresAt());
     }
 }

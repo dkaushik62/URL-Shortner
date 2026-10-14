@@ -20,6 +20,11 @@ public class UrlErrors {
         return ResponseEntity.status(404).body(new ErrorBody("Unknown code"));
     }
 
+    @ExceptionHandler(UrlService.ExpiredCode.class)
+    public ResponseEntity<ErrorBody> expired() {
+        return ResponseEntity.status(410).body(new ErrorBody("Expired code"));
+    }
+
     @ExceptionHandler(UrlService.AllocationExhausted.class)
     public ResponseEntity<ErrorBody> exhausted() {
         return ResponseEntity.status(503).body(new ErrorBody("Code allocation unavailable"));
