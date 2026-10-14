@@ -15,7 +15,7 @@ required for the application. Windows, macOS and Linux use the same Python scrip
 The repository is private. Reviewers need access from its owner before cloning:
 
 ```text
-git clone https://github.com/dkaushik62/URL-Shortner.git
+git clone --branch codex/assignment-prototype https://github.com/dkaushik62/URL-Shortner.git
 cd URL-Shortner
 python scripts/bootstrap.py
 python scripts/start.py
@@ -29,6 +29,10 @@ and named containers support one local installation at a time.
 The submitted URL service, UI, automated tests and bundled evidence work without
 a model connection. **New live engineering runs need the operator's own model
 access.** Your credentials and the author's account tokens are never distributed.
+
+For the development stages, start with [the build journal](docs/BUILD_JOURNAL.md)
+and the branch's commit history. The implementation is on
+`codex/assignment-prototype` while its draft pull request is under review.
 
 ### Default live model connection: existing ChatGPT access
 
