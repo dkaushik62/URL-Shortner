@@ -61,11 +61,11 @@ Prefer package-scoped diagnostics. Enabling framework web, JDBC, or root DEBUG/T
 
 ## Verification status
 
-Automated tests: no tests were executed by this implementation stage and no trusted results for this enhancement were supplied. Java compilation/tests, Python tests, and frontend typecheck/build remain outstanding. Existing supplied historical results described 100 Java tests with 98 passing and two fixture failures for source 528696c0e0e6b167c2fb340a164bc45490790427; those results do not verify this revision.
+The implementation stage did not execute tests. Subsequent trusted validation of enhancement run `9ed4825c0fbe47acafdd6a1cb5559c35` passed 107 Java tests and 39 independent HTTP checks at source `962d86831a17d81fc7cd19c949316cac99407720`. The earlier compile failure was repaired and retained in the run's validation history. PR #5 was created after approval, merged by the operator and separately promoted into the local demo.
 
 The CreationLimitHttpTest fixture retains its BeanFactoryPostProcessor registration fix and behavioral assertions while installing request correlation and updating error-body assertions. Existing expiry, public URL, limiter concurrency, repository precision, and service regression tests remain applicable. New ErrorHandlingTest covers shared envelopes, application codes, native framework status/headers, escaping failures, committed responses, servlet error fixtures, MDC restoration, structured severity, and sensitive exception sentinels. Mocked and servlet fixture coverage does not establish live PostgreSQL or container behavior.
 
-Live runs: no live PostgreSQL or independent HTTP results were supplied or executed. Migration compatibility, exact database round trips, allowance recovery, container dispatch, and concurrent accounting remain unverified.
+The HTTP checks exercised the actual PostgreSQL-backed candidate and a populated V1 upgrade, including redirect counting, expiry and rate-limit behavior. See [the full saved execution](../../verification/live-runs/enhancement-9ed4825c0fbe47acafdd6a1cb5559c35.json) and [final model-free verification](../../verification/FINAL_REPORT.md). Exact error-dispatch paths, every enhancement-specific live failure and a production log-collection pipeline are not established by those HTTP cases; their fixture/unit coverage is reported separately.
 
 ## Trusted-runner checks
 

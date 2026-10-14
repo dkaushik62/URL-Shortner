@@ -1,5 +1,6 @@
 """Check the running demo's actual Docker controls; no model calls."""
 import json
+import argparse
 import subprocess
 from pathlib import Path
 
@@ -11,6 +12,12 @@ def inspect(*args):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output", default="verification/isolation.json", help="Receipt path inside the repository")
+    args = parser.parse_args()
+    output = (ROOT / args.output).resolve()
+    if not output.is_relative_to(ROOT.resolve()):
+        raise SystemExit("Isolation receipt must remain inside the repository")
     live = subprocess.run(["docker", "inspect", "urlshortner-demo"], capture_output=True, text=True)
     if live.returncode:
         name = subprocess.check_output(["docker", "compose", "ps", "-q", "backend"], cwd=ROOT, text=True).strip()
@@ -51,7 +58,6 @@ def main():
     blocked = subprocess.run(["docker", "run", "--rm", "--network", network, "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--security-opt", f"seccomp={ROOT / 'infra/runner/seccomp.json'}", "--memory", "128m", "--cpus", "1", "--pids-limit", "32", "urlshortner-acceptance:local", "-c", database_probe], capture_output=True, text=True)
     checks["engineering_database_connection_blocked"] = blocked.returncode == 0
     report = {"passed": all(checks.values()), "checks": checks, "networks": networks, "outbound_probe_exit": probe.returncode}
-    output = ROOT / "verification/isolation.json"
     output.parent.mkdir(exist_ok=True)
     output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report, indent=2))

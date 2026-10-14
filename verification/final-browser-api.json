@@ -1,0 +1,52 @@
+{
+  "checked_at": "2026-10-14T20:27:25.365100+00:00",
+  "passed": true,
+  "browser": "Chrome extension",
+  "live_runs": 6,
+  "bundled_archives": 6,
+  "all_archives_inspected_in_browser": true,
+  "historical_test_panel_junit_count": 107,
+  "browser_created_link": {
+    "code": "XJwJwZ5X",
+    "destination": "https://example.com/submission-proof",
+    "clicks_before": 0,
+    "clicks_after": 1
+  },
+  "redirect": {
+    "status": 302,
+    "exact_location": true
+  },
+  "invalid_input": {
+    "status": 400,
+    "response": {
+      "code": "INVALID_INPUT",
+      "message": "Invalid creation request",
+      "timestamp": "2026-10-14T20:27:24.814399237Z",
+      "path": "/api/urls",
+      "requestId": "c4dd7ec2-4090-4e9e-9a07-de29be50d72e"
+    }
+  },
+  "unknown_link": {
+    "status": 404,
+    "response": {
+      "code": "LINK_NOT_FOUND",
+      "message": "Unknown code",
+      "timestamp": "2026-10-14T20:27:25.068882430Z",
+      "path": "/api/urls/SubmissionMissing/analytics",
+      "requestId": "58b8f4ca-19a2-4e3d-b975-bf852a24201e"
+    }
+  },
+  "destination_privacy_sentinel_absent_from_demo_logs": true,
+  "mobile": {
+    "viewport_width": 390,
+    "content_width": 375,
+    "no_horizontal_overflow": true,
+    "device_emulation_only": true
+  },
+  "ordinary_info_warn_logs": {
+    "INFO": true,
+    "WARN": true
+  },
+  "no_live_500_dispatch_claim": true,
+  "no_model_call": true
+}

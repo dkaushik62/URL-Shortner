@@ -49,6 +49,19 @@ claim of authenticated human identity. Promotion completed after a Docker timeou
 and one infrastructure retry. The final verification also re-checks expiration
 and a V1 database upgrade containing an existing row.
 
+## Additional current-project enhancements
+
+Documentation-only run `aeddd134cf2d44d59db0fa37436686f6` demonstrated general
+enhancement delivery, 100 Java tests, 39 HTTP cases, approval checkpoint recovery
+and PR reconciliation. It created PR #2 and finished without local promotion.
+
+Error/exception/logging run `9ed4825c0fbe47acafdd6a1cb5559c35` generated centralized
+errors and safe request-correlated logging. A 240-second response timeout was
+recovered with a 900-second checkpoint retry; an actual compile error then triggered
+one bounded repair. Final validation passed 107 Java tests and 39 HTTP cases.
+Interactive decisions authorized PR #5 and local promotion separately. The PR is
+merged. [Final six-run evidence](../verification/FINAL_REPORT.md).
+
 ## Evidence limits
 
 State-machine tests use named doubles; scenario records use real model/Docker

@@ -1,0 +1,109 @@
+{
+  "captured_at": "2026-10-14T20:27:25.365100+00:00",
+  "metrics": {
+    "runs": 6,
+    "completed": 6,
+    "successful": 5,
+    "success_rate": 0.8333333333333334,
+    "retries": 6,
+    "rollbacks": 7,
+    "mean_recovery_seconds": 660.9940987499999,
+    "definitions": {
+      "success_rate": "Successful runs / all terminal runs, including operator stops and rejection",
+      "retries": "Model retries plus explicit infrastructure checkpoint retries",
+      "mean_recovery_seconds": "First failed validation to passing validation, for recovered runs only"
+    }
+  },
+  "runs": [
+    {
+      "id": "88daf6c969d441c79b2f852abb2ec94a",
+      "scenario": "ambiguous",
+      "status": "succeeded",
+      "revision": 1,
+      "active_seconds": 684.734,
+      "end_to_end_seconds": 1066.199,
+      "model_calls": 10,
+      "retries": 1,
+      "rollbacks": 1,
+      "recovery_seconds": 224.770701,
+      "event_chain_valid": true,
+      "java_tests": 100,
+      "http_cases": 13
+    },
+    {
+      "id": "9915f2f65342408082cafb6012145005",
+      "scenario": "brownfield",
+      "status": "succeeded",
+      "revision": 2,
+      "active_seconds": 1344.03,
+      "end_to_end_seconds": 1979.412,
+      "model_calls": 19,
+      "retries": 3,
+      "rollbacks": 3,
+      "recovery_seconds": 1105.940232,
+      "event_chain_valid": true,
+      "java_tests": 92,
+      "http_cases": 15
+    },
+    {
+      "id": "9ed4825c0fbe47acafdd6a1cb5559c35",
+      "scenario": "enhancement",
+      "status": "succeeded",
+      "revision": 1,
+      "active_seconds": 1055.187,
+      "end_to_end_seconds": 4271.038,
+      "model_calls": 11,
+      "retries": 1,
+      "rollbacks": 1,
+      "recovery_seconds": 222.295469,
+      "event_chain_valid": true,
+      "java_tests": 107,
+      "http_cases": 39
+    },
+    {
+      "id": "aeddd134cf2d44d59db0fa37436686f6",
+      "scenario": "enhancement",
+      "status": "succeeded",
+      "revision": 1,
+      "active_seconds": 407.47,
+      "end_to_end_seconds": 752.24,
+      "model_calls": 7,
+      "retries": 0,
+      "rollbacks": 0,
+      "recovery_seconds": null,
+      "event_chain_valid": true,
+      "java_tests": 100,
+      "http_cases": 39
+    },
+    {
+      "id": "cef8b2f4cbd741be838fc8d6f42f6218",
+      "scenario": "greenfield",
+      "status": "stopped",
+      "revision": 1,
+      "active_seconds": 615.312,
+      "end_to_end_seconds": 614.135,
+      "model_calls": 13,
+      "retries": 0,
+      "rollbacks": 1,
+      "recovery_seconds": null,
+      "event_chain_valid": true,
+      "java_tests": 0,
+      "http_cases": 0
+    },
+    {
+      "id": "fcc92f3051df4ef19b8dfc875295e94e",
+      "scenario": "greenfield",
+      "status": "succeeded",
+      "revision": 1,
+      "active_seconds": 857.032,
+      "end_to_end_seconds": 1858.822,
+      "model_calls": 13,
+      "retries": 1,
+      "rollbacks": 1,
+      "recovery_seconds": 1090.969993,
+      "event_chain_valid": true,
+      "java_tests": 65,
+      "http_cases": 10
+    }
+  ]
+}

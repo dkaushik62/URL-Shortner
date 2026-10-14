@@ -1,0 +1,70 @@
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 236B 0.0s done
+#1 DONE 0.1s
+
+#2 [internal] load metadata for docker.io/library/node:24.19.0-alpine
+#2 DONE 1.9s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 58B 0.1s done
+#3 DONE 0.2s
+
+#4 [build 1/6] FROM docker.io/library/node:24.19.0-alpine@sha256:d32cdf619f63fe0471182d08996dd516c6275bb5fd31ae06e55a570bd9e1ad43
+#4 DONE 0.0s
+
+#5 [build 2/6] WORKDIR /app
+#5 CACHED
+
+#6 [internal] load build context
+#6 transferring context: 496B 0.1s done
+#6 DONE 0.2s
+
+#7 [build 3/6] COPY package.json package-lock.json ./
+#7 DONE 0.8s
+
+#8 [build 4/6] RUN npm ci --include=optional
+#8 44.48 
+#8 44.48 added 46 packages, and audited 47 packages in 39s
+#8 44.48 
+#8 44.48 13 packages are looking for funding
+#8 44.48   run `npm fund` for details
+#8 44.48 
+#8 44.48 found 0 vulnerabilities
+#8 44.49 npm notice
+#8 44.49 npm notice New major version of npm available! 11.17.0 -> 12.2.0
+#8 44.49 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+#8 44.49 npm notice To update run: npm install -g npm@12.2.0
+#8 44.49 npm notice
+#8 DONE 48.8s
+
+#9 [build 5/6] COPY . .
+#9 DONE 0.2s
+
+#10 [build 6/6] RUN npm run build
+#10 2.074 
+#10 2.074 > engineering-workbench@1.0.0 build
+#10 2.074 > tsc --noEmit && vite build
+#10 2.074 
+#10 4.442 vite v8.3.4 building client environment for production...
+#10 4.467 transforming...
+#10 5.763 ✓ 1923 modules transformed.
+#10 6.819 rendering chunks...
+#10 7.119 computing gzip size...
+#10 7.128 dist/index.html                   0.42 kB │ gzip:  0.30 kB
+#10 7.128 dist/assets/index-D13UVWW1.css   23.53 kB │ gzip:  6.14 kB
+#10 7.128 dist/assets/index-DilKYs3B.js   259.80 kB │ gzip: 80.89 kB
+#10 7.128 
+#10 7.135 ✓ built in 2.69s
+#10 DONE 7.6s
+
+#11 [assets 1/1] COPY --from=build /app/dist/ /
+#11 CACHED
+
+#12 exporting to client directory
+#12 copying files 89.68kB 0.1s
+#12 copying files 283.99kB 0.2s done
+#12 DONE 0.3s
+
+View build details: docker-desktop://dashboard/build/default/default/jtz5raicigm6fb77epanesxpk

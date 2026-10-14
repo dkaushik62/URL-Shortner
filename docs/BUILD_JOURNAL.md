@@ -4,6 +4,19 @@ The original implementation branch was `codex/assignment-prototype`, merged into
 `main` through PR #1 with its stage commits retained. The repository stays private;
 the owner must grant the interviewer access. Subsequent changes use separate PRs.
 
+## 2026-10-15: final submission and six-run archive
+
+The error/exception/logging run `9ed4825c0fbe47acafdd6a1cb5559c35` completed after
+one real compile repair. It passed 107 Java tests and 39 independent HTTP cases,
+created PR #5 after interactive approval, and promoted locally after a separate
+approval. The operator merged PR #5. Active execution was 1055.187 seconds,
+including the earlier timeout; wall latency was 4271.038 seconds including waits.
+
+The final submission adds this sixth full run export, corrects stale generated
+documentation after verification, maps all seven assignment sections and eight
+core requirements, and attaches current screenshots and final verification.
+The previous five run exports remain unchanged. [Submission route](SUBMISSION.md).
+
 ## 2026-10-15: model timeout and checkpoint recovery
 
 Run `9ed4825c0fbe47acafdd6a1cb5559c35` submitted the error-code, centralized exception
