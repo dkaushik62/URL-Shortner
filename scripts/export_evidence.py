@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import argparse
 import json
 import os
 import subprocess
@@ -17,12 +18,18 @@ from orchestrator.workspaces import Workspaces
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--run-id", help="Export just one completed live run, preserving older evidence files")
+    args = parser.parse_args()
     store = Store(os.environ.get("DATABASE_URL", "postgresql://workbench:local_workbench@127.0.0.1:55432/workbench"))
     workspaces = Workspaces(ROOT, ROOT / ".runtime/runs")
     target = ROOT / "verification/live-runs"
     target.mkdir(parents=True, exist_ok=True)
-    manifest = []
+    manifest_file = target.parent / "manifest.json"
+    manifest = [entry for entry in json.loads(manifest_file.read_text()) if entry["run_id"] != args.run_id] if args.run_id and manifest_file.exists() else []
     for run in store.list():
+        if args.run_id and run["id"] != args.run_id:
+            continue
         if run["status"] not in TERMINAL:
             continue
         candidate = run.get("stopped_candidate_sha") or run.get("artifacts", {}).get("implementation", {}).get("source_sha")
@@ -34,7 +41,7 @@ def main():
                "total_retries": run["retries"] + run.get("retry_attempts", 0),
                "end_to_end_seconds": round((datetime.fromisoformat(run["completed_at"]) - datetime.fromisoformat(run["created_at"])).total_seconds(), 3)}
         bundle = {"kind": "recorded_live_run", "exported_at": utcnow(), "run": run, "events": store.events(run["id"]),
-                  "provenance": {"model_output": "Live ChatGPT-authenticated Codex CLI", "test_execution": "Real isolated Docker execution", "automatic_decisions": "verification; not authenticated human identity", "source_sha_scope": "isolated run workspace Git repository", "limitations": "Local event chain, not an independently signed archive"}}
+                  "provenance": {"model_output": "Live ChatGPT-authenticated Codex CLI", "test_execution": "Real isolated Docker execution", "automatic_decisions": "Recorded local checkpoint actions; not authenticated human identity", "source_sha_scope": "isolated run workspace Git repository", "limitations": "Local event chain, not an independently signed archive"}}
         name = f'{run["scenario"]}-{run["id"]}.json'
         data = (json.dumps(bundle, indent=2, ensure_ascii=False) + "\n").encode()
         (target / name).write_bytes(data)

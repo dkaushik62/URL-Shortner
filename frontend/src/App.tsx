@@ -40,7 +40,7 @@ export default function App() {
 
   const [metrics, setMetrics] = useState<Metrics | null>(null);
 
-  const [scenario, setScenario] = useState('greenfield');
+  const [scenario, setScenario] = useState('enhancement');
 
   const [requirement, setRequirement] = useState('');
 
@@ -64,7 +64,7 @@ export default function App() {
 
   const [busy, setBusy] = useState(false);
 
-  const [answers, setAnswers] = useState('Accept the local single-instance scope: 20 URL creations per minute per client, configurable, with 429 and Retry-After; redirects remain unlimited.');
+  const [answers, setAnswers] = useState('');
 
   const [revisionText, setRevisionText] = useState('');
 
@@ -98,7 +98,7 @@ export default function App() {
 
         if (cancelled) return;
 
-        setSettings(nextSettings); setRequirement(nextSettings.scenarios.greenfield.requirement); setHistory(nextHistory); setMetrics(nextMetrics);
+        setSettings(nextSettings); setRequirement(nextSettings.scenarios.enhancement.requirement); setHistory(nextHistory); setMetrics(nextMetrics);
 
         setSavedEvidence(nextEvidence);
 
@@ -188,7 +188,7 @@ export default function App() {
 
 
 
-  function chooseScenario(value: string) { setScenario(value); setRequirement(settings?.scenarios[value]?.requirement || ''); }
+  function chooseScenario(value: string) { setScenario(value); setRequirement(settings?.scenarios[value]?.requirement || ''); setAnswers(''); }
 
   async function inspectSaved(name: string) {
 
@@ -211,6 +211,7 @@ export default function App() {
   const pending = archiveName ? null : run?.pending;
 
   const nodeArtifact = run?.artifacts[selectedNode];
+  const pullRequest = run?.artifacts.github_delivery;
 
   const tests = run?.artifacts.tests;
 
@@ -248,7 +249,7 @@ export default function App() {
 
           <div className="metric-strip"><Metric label="Runs" value={String(metrics?.runs ?? 0)} /><Metric label="Success rate" value={metrics?.success_rate == null ? 'Not available' : `${Math.round(metrics.success_rate * 100)}%`} /><Metric label="Retries / rollbacks" value={`${metrics?.retries ?? 0} / ${metrics?.rollbacks ?? 0}`} /><Metric label="Mean recovery" value={duration(metrics?.mean_recovery_seconds)} /></div>
 
-          <section className="card history-card"><div className="section-heading"><h2>All executions</h2><span className="muted">Persisted locally</span></div>{history.length ? <div className="table-scroll"><table><thead><tr><th>Scenario & requirement</th><th>Status</th><th>Revision</th><th>Active time</th><th>Calls</th><th>Created</th></tr></thead><tbody>{history.map(item => <tr key={item.id}><td><button className="run-link" onClick={() => { setArchiveName(null); setRunId(item.id); setTab('workbench'); }}>{pretty(item.scenario)}<ArrowRight size={14} /></button><p>{item.requirement.slice(0,90)}{item.requirement.length > 90 ? '…' : ''}</p></td><td><Status value={item.status} /></td><td>r{item.revision}</td><td>{duration(item.active_seconds)}</td><td>{item.model_calls}</td><td>{new Date(item.created_at).toLocaleString()}</td></tr>)}</tbody></table></div> : <Empty title="No executions yet" text="Start an engineering requirement in the Workbench. Its evidence will appear here." />}</section>
+          <section className="card history-card"><div className="section-heading"><h2>All executions</h2><span className="muted">Persisted locally</span></div>{history.length ? <div className="table-scroll"><table><thead><tr><th>Scenario & requirement</th><th>Status</th><th>Revision</th><th>Active time</th><th>Calls</th><th>Created</th></tr></thead><tbody>{history.map(item => <tr key={item.id}><td><button className="run-link" onClick={() => { setArchiveName(null); setRunId(item.id); setTab('workbench'); }}>{pretty(item.scenario)}<ArrowRight size={14} /></button><p>{item.requirement.slice(0,90)}{item.requirement.length > 90 ? '…' : ''}</p>{item.pull_request_url ? <a href={item.pull_request_url} target="_blank" rel="noopener noreferrer">View draft PR</a> : null}</td><td><Status value={item.status} /></td><td>r{item.revision}</td><td>{duration(item.active_seconds)}</td><td>{item.model_calls}</td><td>{new Date(item.created_at).toLocaleString()}</td></tr>)}</tbody></table></div> : <Empty title="No executions yet" text="Start an engineering requirement in the Workbench. Its evidence will appear here." />}</section>
 
           <section className="card history-card"><div className="section-heading"><h2>Recorded demonstration evidence</h2><span className="muted">Bundled with the repository</span></div>{savedEvidence.length ? <div className="table-scroll"><table><thead><tr><th>Scenario</th><th>Status</th><th>Revision</th><th>Recorded</th></tr></thead><tbody>{savedEvidence.map(item => <tr key={item.filename}><td><button className="run-link" disabled={busy} onClick={() => inspectSaved(item.filename)}>{pretty(item.scenario)}<ArrowRight size={14} /></button><p>{item.id.slice(0,12)}</p></td><td><Status value={item.status} /></td><td>r{item.revision}</td><td>{new Date(item.created_at).toLocaleString()}</td></tr>)}</tbody></table></div> : <Empty title="No bundled evidence" text="Real run exports can be added with the evidence export script." />}</section>
 
@@ -262,9 +263,10 @@ export default function App() {
 
           <section className="card requirement-card"><div className="section-heading"><h2><span className="section-number">01</span>Engineering requirement</h2><span className="muted">Scope: Java URL service</span></div>
 
-            <form onSubmit={execute}><div className="scenario-selector" role="group" aria-label="Scenario">{['greenfield', 'brownfield', 'ambiguous'].map(value => <button key={value} type="button" className={scenario === value ? 'selected' : ''} aria-pressed={scenario === value} onClick={() => chooseScenario(value)}>{pretty(value)}<small>{settings?.scenarios[value]?.title}</small></button>)}</div>
+            <form onSubmit={execute}><div className="scenario-selector" role="group" aria-label="Scenario">{['enhancement', 'greenfield', 'brownfield', 'ambiguous'].map(value => <button key={value} type="button" className={scenario === value ? 'selected' : ''} aria-pressed={scenario === value} onClick={() => chooseScenario(value)}>{pretty(value)}<small>{settings?.scenarios[value]?.title}</small></button>)}</div>
 
               <label className="sr-only" htmlFor="requirement">Engineering requirement</label><textarea id="requirement" required maxLength={12000} value={requirement} onChange={e => setRequirement(e.target.value)} placeholder="Describe the change and its acceptance criteria…" />
+              {scenario === 'enhancement' ? <p className="footnote">Enhances the current Java URL service. Review the changes and tests, then approve creation of a private GitHub draft PR. Updating the local demo is a separate choice. GitHub CLI must be signed in with repository write access.</p> : <p className="footnote">Assignment demonstration: validated changes can be promoted into the local demo after approval. These scenarios do not create GitHub PRs.</p>}
 
               <div className="configuration-row"><label>Model connection<select value={config.provider} onChange={e => { setConfig({ ...config, provider: e.target.value as RuntimeConfig['provider'] }); setApiKey(''); }}>{settings?.providers.map(provider => <option key={provider.id} value={provider.id} disabled={!provider.enabled}>{provider.label}{!provider.enabled ? ' · disabled' : ''}</option>)}</select></label><label>Model <span className="muted">optional for Codex</span><input value={config.model} maxLength={100} placeholder="Use CLI default" onChange={e => setConfig({ ...config, model: e.target.value })} autoComplete="off" /></label><button className="primary execute" disabled={busy || active || !settings}><Play size={15} />{busy ? 'Starting…' : 'Execute requirement'}</button></div>
 
@@ -283,16 +285,17 @@ export default function App() {
           {archiveName ? <div className="notice warning"><FileText size={17} />Recorded demonstration · read-only evidence from the author’s local run. <a href={`/engineering/evidence/${archiveName}`}>Download full record</a></div> : null}
 
           {run?.stop_reason ? <div className="notice warning"><ShieldCheck size={17} />{run.stop_reason}</div> : null}
+          {pullRequest?.url && /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+$/.test(pullRequest.url) ? <section className="card pr-result"><div><span className="eyebrow">GITHUB DELIVERY</span><h3>Draft PR ready</h3><p>{pullRequest.repository} · base {pullRequest.base_branch} · revision {run?.revision}</p><a href={pullRequest.url} target="_blank" rel="noopener noreferrer">Open pull request #{pullRequest.number}<ArrowRight size={14} /></a></div><p className="footnote">The PR contains the changes and recorded test evidence. Merge it in GitHub when ready.</p></section> : null}
 
           {!archiveName && run?.status === 'stopped' && run.platform_failure ? <button className="secondary" disabled={busy} onClick={() => action(`/engineering/runs/${run.id}/retry`, { ...(apiKey ? { api_key: apiKey } : {}) })}><RotateCcw size={14} />Retry after infrastructure repair · retain budgets</button> : null}
 
           {pending?.kind === 'clarification' ? <section className="card checkpoint"><div className="checkpoint-icon"><FileText size={21} /></div><div><span className="eyebrow">HUMAN CHECKPOINT</span><h3>Resolve the requirement</h3>{pending.questions?.map(question => <p key={question.id}>{question.text}</p>)}<label htmlFor="clarification">Your acceptance criteria</label><textarea id="clarification" value={answers} onChange={e => setAnswers(e.target.value)} /><button className="primary" disabled={busy} onClick={() => action(`/engineering/runs/${run!.id}/clarification`, { expected_revision: run!.revision, answers })}>Submit clarification<ArrowRight size={15} /></button></div></section> : null}
 
-          {pending && pending.kind !== 'clarification' ? <section className="card checkpoint"><div className="checkpoint-icon"><ShieldCheck size={23} /></div><div><span className="eyebrow">HUMAN CHECKPOINT · REVISION {run?.revision}</span><h3>{pending.kind === 'promotion' ? 'Review before local release' : 'Review the proposed change'}</h3><p>{pending.reason}</p><p className="footnote">Approval is bound to the displayed source and artifact revision. A requirement change invalidates it.</p><div className="button-row"><button className="primary" disabled={busy} onClick={() => action(`/engineering/runs/${run!.id}/approval`, { expected_revision: run!.revision, approval_id: pending.approval_id, artifact_hash: pending.artifact_hash, approved: true, reason: 'Approved through the local Workbench UI' })}><Check size={15} />Approve & continue</button><button className="secondary danger" disabled={busy} onClick={() => action(`/engineering/runs/${run!.id}/approval`, { expected_revision: run!.revision, approval_id: pending.approval_id, artifact_hash: pending.artifact_hash, approved: false, reason: 'Rejected through the local Workbench UI' })}><X size={15} />Reject & stop</button></div></div></section> : null}
+          {pending && pending.kind !== 'clarification' ? <section className="card checkpoint"><div className="checkpoint-icon"><ShieldCheck size={23} /></div><div><span className="eyebrow">HUMAN CHECKPOINT · REVISION {run?.revision}</span><h3>{pending.kind === 'github' ? 'Review before creating a PR' : pending.kind === 'optional_promotion' ? 'Update the local demo?' : pending.kind === 'promotion' ? 'Review before local release' : 'Review the proposed change'}</h3><p>{pending.reason}</p><p className="footnote">Approval is bound to the displayed source and artifact revision. A requirement change invalidates it.</p><div className="button-row"><button className="primary" disabled={busy} onClick={() => action(`/engineering/runs/${run!.id}/approval`, { expected_revision: run!.revision, approval_id: pending.approval_id, artifact_hash: pending.artifact_hash, approved: true, reason: 'Approved through the local Workbench UI' })}><Check size={15} />{pending.kind === 'github' ? 'Approve & create draft PR' : pending.kind === 'optional_promotion' ? 'Approve local promotion' : 'Approve & continue'}</button><button className={`secondary ${pending.kind === 'optional_promotion' ? '' : 'danger'}`} disabled={busy} onClick={() => action(`/engineering/runs/${run!.id}/approval`, { expected_revision: run!.revision, approval_id: pending.approval_id, artifact_hash: pending.artifact_hash, approved: false, reason: pending.kind === 'optional_promotion' ? 'Finished without local promotion through the Workbench UI' : 'Rejected through the local Workbench UI' })}><X size={15} />{pending.kind === 'optional_promotion' ? 'Finish without local promotion' : 'Reject & stop'}</button></div></div></section> : null}
 
           {!archiveName && run && ['interrupted','awaiting_approval','awaiting_clarification'].includes(run.status) ? <details className="card revise-card"><summary><RotateCcw size={15} />Change requirement or resume configuration</summary><label htmlFor="revised-requirement">New requirement · creates revision {run.revision + 1}</label><textarea id="revised-requirement" value={revisionText} onChange={e => setRevisionText(e.target.value)} placeholder={run.requirement} /><div className="button-row"><button className="secondary" disabled={busy || revisionText.length < 10} onClick={() => action(`/engineering/runs/${run.id}/requirements`, { expected_revision: run.revision, requirement: revisionText })}>Invalidate downstream outputs & re-plan</button><button className="secondary" disabled={busy} onClick={() => { action(`/engineering/runs/${run.id}/resume`, { config, ...(apiKey ? { api_key: apiKey } : {}) }); setApiKey(''); }}>Apply configuration{run.status === 'interrupted' ? ' & resume' : ''}</button></div></details> : null}
 
-          <div className="execution-grid"><section className="card graph-card"><div className="section-heading"><h2><Workflow size={17} />Dependency graph</h2><span className={`stream-state ${connected ? 'connected' : ''}`}><span />{archiveName ? 'Saved events' : run ? connected ? 'Live events' : 'Reconnecting' : 'Ready'}</span></div><div className="graph-scroll"><WorkflowGraph run={run} selected={selectedNode} onSelect={setSelectedNode} edges={settings?.edges ?? []} /></div><div className="graph-legend"><span><i className="passed" />Passed</span><span><i className="running" />Running</span><span><i className="waiting" />Approval</span><span><i className="pending" />Pending</span></div></section>
+          <div className="execution-grid"><section className="card graph-card"><div className="section-heading"><h2><Workflow size={17} />Dependency graph</h2><span className={`stream-state ${connected ? 'connected' : ''}`}><span />{archiveName ? 'Saved events' : run ? connected ? 'Live events' : 'Reconnecting' : 'Ready'}</span></div><div className="graph-scroll"><WorkflowGraph run={run} mode={run?.scenario ?? scenario} selected={selectedNode} onSelect={setSelectedNode} edges={settings?.edges ?? []} /></div><div className="graph-legend"><span><i className="passed" />Passed</span><span><i className="running" />Running</span><span><i className="waiting" />Approval</span><span><i className="pending" />Pending</span></div></section>
 
             <section className="card inspector"><div className="section-heading"><h2><Code2 size={17} />{titles[selectedNode]}</h2>{nodeArtifact ? <a className="icon-button" aria-label={`Download ${titles[selectedNode]} artifact`} href={archiveName ? `/engineering/evidence/${archiveName}` : `/engineering/runs/${runId}/artifacts/${selectedNode}`}><ArrowDownToLine size={16} /></a> : null}</div><div className="inspector-tabs" role="group" aria-label="Evidence view">{(['output','diff','checks'] as const).map(value => <button className={inspection === value ? 'selected' : ''} key={value} onClick={() => setInspection(value)}>{value === 'output' ? 'Agent output' : value === 'diff' ? 'Source diff' : 'Test evidence'}</button>)}</div>
 

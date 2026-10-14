@@ -46,13 +46,25 @@ def test_subprocess_environment_excludes_credentials(monkeypatch):
 def test_redaction():
     assert "private-value" not in scrub("secret=private-value", ["private-value"])
     assert "sk-ant-example12345" not in scrub("key sk-ant-example12345")
+    assert "ghp_private12345678" not in scrub("key ghp_private12345678")
+    assert "github_pat_private12345678" not in scrub("key github_pat_private12345678")
 
 
 def test_model_field_rejects_credentials_and_endpoint_urls():
     from pydantic import ValidationError
-    for model in ["sk-example-secret123", "https://foreign.example/model"]:
+    for model in ["sk-example-secret123", "ghp_private12345678", "github_pat_private12345678", "https://foreign.example/model"]:
         with pytest.raises(ValidationError):
             RuntimeConfig(model=model)
+
+
+async def test_generated_github_credential_is_rejected_before_artifact_storage(tmp_path, monkeypatch):
+    gateway = ModelGateway(tmp_path)
+    async def leaked_output(*args):
+        return json.dumps({"summary": "ghp_TESTPRIVATEVALUE12345", "verdict": "pass", "decisions": [], "tasks": [], "questions": [], "risks": [], "files": []})
+    monkeypatch.setattr(gateway, "codex", leaked_output)
+    with pytest.raises(SafeStop, match="Credential leakage") as error:
+        await gateway.generate("run", RuntimeConfig(), "requirements", {})
+    assert "TESTPRIVATEVALUE" not in str(error.value)
 
 
 def test_cli_planning_metadata_is_allowed_and_host_tools_fail_closed():

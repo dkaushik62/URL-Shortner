@@ -14,7 +14,7 @@ TERMINAL = {"succeeded", "failed", "stopped"}
 WAITING = {"awaiting_clarification", "awaiting_approval", "interrupted"}
 NODES = ["requirements", "clarification", "plan", "architecture", "test_design",
          "change_approval", "implementation", "tests", "documentation", "review",
-         "release_approval", "promotion", "summary"]
+         "release_approval", "github_delivery", "local_release_approval", "promotion", "summary"]
 EDGES = [("requirements", "clarification"), ("requirements", "plan"),
          ("clarification", "plan"), ("plan", "architecture"), ("plan", "test_design"),
          ("architecture", "change_approval"), ("test_design", "change_approval"),
@@ -22,6 +22,8 @@ EDGES = [("requirements", "clarification"), ("requirements", "plan"),
          ("implementation", "documentation"), ("tests", "review"),
          ("documentation", "review"), ("review", "implementation"),
          ("review", "release_approval"), ("release_approval", "promotion"),
+         ("release_approval", "github_delivery"), ("github_delivery", "local_release_approval"),
+         ("local_release_approval", "promotion"), ("local_release_approval", "summary"),
          ("promotion", "summary")]
 
 
@@ -45,7 +47,7 @@ class RuntimeConfig(StrictModel):
     @classmethod
     def valid_model(cls, value: str) -> str:
         import re
-        if value.startswith(("sk-", "https://", "http://")):
+        if value.startswith(("sk-", "ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_", "https://", "http://")):
             raise ValueError("Use a model identifier; keep keys in the masked credential field")
         if value and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]*", value):
             raise ValueError("Model must be a model identifier, not a URL or command")
@@ -53,7 +55,7 @@ class RuntimeConfig(StrictModel):
 
 
 class RunRequest(StrictModel):
-    scenario: Literal["greenfield", "brownfield", "ambiguous"]
+    scenario: Literal["greenfield", "brownfield", "ambiguous", "enhancement"]
     requirement: str = Field(default="", max_length=12000)
     config: RuntimeConfig = Field(default_factory=RuntimeConfig)
     api_key: SecretStr | None = None

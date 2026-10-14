@@ -1,5 +1,11 @@
 # Architecture
 
+Current-project enhancement runs also use a trusted host GitHub delivery bridge.
+It creates an isolated full-repository checkout, exports only validated Java
+changes and engineering evidence, and opens a private draft PR. Generated agents
+never receive GitHub access. PR creation and local promotion have separate approvals;
+see [the enhancement control flow](ENHANCEMENT_DELIVERY.md).
+
 The URL service is the software being engineered. The workbench is its control
 plane. User link creation calls Java directly through a fixed local proxy and does
 not invoke engineering agents.

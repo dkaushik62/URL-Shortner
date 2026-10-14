@@ -1,5 +1,9 @@
 # Verification report
 
+This report covers the original four assignment runs. Subsequent current-project
+enhancement/PR delivery has a [separate verification report](ENHANCEMENT_REPORT.md);
+the repository now preserves five real run exports.
+
 Evidence captured on Windows on 2026-10-14. No cloud deployment, billed provider,
 or evaluator credentials were used. Run archives distinguish model output, executed
 tests and scripted decisions. The private repository requires reviewer access.

@@ -28,7 +28,7 @@ class EvidenceArchive:
         self.directory = directory.resolve()
 
     def get(self, name: str) -> dict:
-        if not re.fullmatch(r"(?:greenfield|brownfield|ambiguous)-[0-9a-f]{32}\.json", name):
+        if not re.fullmatch(r"(?:greenfield|brownfield|ambiguous|enhancement)-[0-9a-f]{32}\.json", name):
             raise PolicyError("Invalid evidence filename")
         path = self.directory / name
         if not path.exists():

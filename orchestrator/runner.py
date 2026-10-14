@@ -119,6 +119,10 @@ class DockerRunner:
             result["infrastructure_error"] = str(error)
             result["acceptance"] = {"passed": False, "cases": [{"name": "HTTP runner infrastructure", "passed": False, "details": str(error)}]}
         result["passed"] = result["acceptance"]["passed"]
+        if result["passed"] and scenario == "enhancement":
+            upgrade = await self.http_checks(run_id, output / "app.jar", scenario, max_days, rate_limit, upgrade_fixture=True)
+            result["acceptance"]["cases"].extend({**case, "name": "V1 upgrade: " + case["name"]} for case in upgrade["cases"])
+            result["acceptance"]["passed"] = result["passed"] = upgrade["passed"]
         result["duration_seconds"] = round(time.monotonic() - started, 3)
         return result
 
