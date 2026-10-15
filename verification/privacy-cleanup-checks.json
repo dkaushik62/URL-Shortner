@@ -1,0 +1,76 @@
+{
+  "kind": "privacy_cleanup_verification",
+  "checked_at": "2026-10-15T06:24:30.048284+00:00",
+  "base_revision": "bddffbc107931cdd3c73a446dc2f6d5a8c517021",
+  "python": {
+    "passed": true,
+    "tests": 84,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1,
+    "passed_tests": 83,
+    "report": "verification/privacy-python-junit.xml",
+    "new_privacy_regression_cases": 8,
+    "test_doubles_are_not_live_runs": true
+  },
+  "frontend": {
+    "typecheck_passed": true,
+    "build_passed": true,
+    "node_version": "24.19.0"
+  },
+  "java_tests": {
+    "executed": true,
+    "passed": true,
+    "tests": 107,
+    "report": "verification/privacy-service.json"
+  },
+  "independent_http_checks": {
+    "executed": true,
+    "passed": true,
+    "standard_cases": 13,
+    "expiry_and_upgrade_cases": 18,
+    "report": "verification/privacy-service.json"
+  },
+  "historical_junit_redaction": [
+    {
+      "path": "verification/enhancement-python-junit.xml",
+      "sanitized": true,
+      "test_metadata_preserved": true
+    },
+    {
+      "path": "verification/final-python-junit.xml",
+      "sanitized": true,
+      "test_metadata_preserved": true
+    },
+    {
+      "path": "verification/python-junit.xml",
+      "sanitized": true,
+      "test_metadata_preserved": true
+    },
+    {
+      "path": "verification/timeout-python-junit.xml",
+      "sanitized": true,
+      "test_metadata_preserved": true
+    }
+  ],
+  "live_run_archives": {
+    "count": 6,
+    "all_bytes_unchanged": true,
+    "original_checksums_valid": true,
+    "new_live_runs_executed": 0
+  },
+  "github_snapshot": {
+    "secret_scanning": "enabled",
+    "push_protection": "enabled",
+    "open_secret_alerts": 0
+  },
+  "future_local_commits_use_github_noreply": true,
+  "history_rewritten": false,
+  "historical_personal_metadata_still_present": true,
+  "secret_scan": {
+    "tool": "Gitleaks 8.30.1",
+    "confirmed_real_credentials": 0,
+    "reviewed_synthetic_fixture_findings": 1,
+    "fixture": "orchestrator/tests/test_security.py:55"
+  }
+}

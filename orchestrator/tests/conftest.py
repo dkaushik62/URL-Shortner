@@ -10,8 +10,18 @@ from langgraph.checkpoint.memory import InMemorySaver
 from orchestrator.domain import AgentOutput, ProposedFile, Task
 from orchestrator.engine import Engine
 from orchestrator.store import Store
+from scripts.sanitize_test_reports import sanitize_junit
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+@pytest.hookimpl(hookwrapper=True, tryfirst=True)
+def pytest_sessionfinish(session, exitstatus):
+    # Run after pytest's JUnit writer, including when tests fail or are skipped.
+    yield
+    report = session.config.getoption("xmlpath", default=None)
+    if report:
+        sanitize_junit(Path(report), repository=ROOT)
 
 
 class FakeGateway:

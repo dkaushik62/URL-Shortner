@@ -29,7 +29,8 @@
     "verification/FINAL_REPORT.md",
     "verification/REPORT.md",
     "verification/SCREENSHOTS.md",
-    "verification/TIMEOUT_RECOVERY.md"
+    "verification/TIMEOUT_RECOVERY.md",
+    "verification/PRIVACY_CLEANUP.md"
   ],
   "files": [
     {
@@ -49,8 +50,8 @@
     },
     {
       "path": "verification/enhancement-python-junit.xml",
-      "sha256": "7ffd85ffa4c3194a5fc70d15d9f2a46bec3d872bc16cd37d96f2994aabf9728c",
-      "bytes": 9639
+      "sha256": "556c1c2a43ef59a67ede28144fdd81d93b484e819b28ded0c55446384288be3f",
+      "bytes": 9614
     },
     {
       "path": "verification/ENHANCEMENT_REPORT.md",
@@ -94,8 +95,8 @@
     },
     {
       "path": "verification/final-python-junit.xml",
-      "sha256": "88527ef209fa1fd427da4256735a43555060e5b512aecc7326a2034abeee61c7",
-      "bytes": 10667
+      "sha256": "e71b4e600a4842dce002eaa7a9c76712dcafcd7ab5d6366b9398c18df7e89414",
+      "bytes": 10642
     },
     {
       "path": "verification/final-run-summary.json",
@@ -169,8 +170,8 @@
     },
     {
       "path": "verification/python-junit.xml",
-      "sha256": "0432222bf1ed477b6d3c3d125e2ac5b73d74cab685612e92e4ffc84e1714baa7",
-      "bytes": 6685
+      "sha256": "c5298b625083fdfcdb8918f5547126b30e4070f31eb81660ae40d23d72a00262",
+      "bytes": 6660
     },
     {
       "path": "verification/REPORT.md",
@@ -279,8 +280,8 @@
     },
     {
       "path": "verification/timeout-python-junit.xml",
-      "sha256": "adf0ff65564cf212233858d7159267e917bcb275ab71fa68d57a184853bc824a",
-      "bytes": 10664
+      "sha256": "60f095e300da65c00cbcdc011279807c7c0ac56baf2120169a825255de3fce10",
+      "bytes": 10639
     },
     {
       "path": "verification/timeout-service.json",
@@ -344,8 +345,8 @@
     },
     {
       "path": "docs/SECURITY.md",
-      "sha256": "68ca814a344e473f873e5792ea66d312bd98f174af2f25975fdda3a5c0409da2",
-      "bytes": 3351
+      "sha256": "fcfed1321b20c11f38faa1ecc47feaa27b03a83d4b983ab57d594b0af01daf49",
+      "bytes": 3839
     },
     {
       "path": "docs/SUBMISSION.md",
@@ -354,8 +355,8 @@
     },
     {
       "path": "docs/TESTING.md",
-      "sha256": "515b940f8bbefa3598c52eff72e1de212a9cab41f24fdb275239f44681b9fd3b",
-      "bytes": 2799
+      "sha256": "4001da3017a9a91945ee7358d61c45a3e4f33bab7a7540979dcb8280f814ec4c",
+      "bytes": 3366
     },
     {
       "path": "backend/docs/http-behavior.md",
@@ -376,6 +377,31 @@
       "path": "scripts/verify_isolation.py",
       "sha256": "95c1cafe58dae599a09cfd017f6b97ffb9f0b78c6222ae5a2650e45f574543e4",
       "bytes": 4768
+    },
+    {
+      "path": "verification/PRIVACY_CLEANUP.md",
+      "sha256": "4da787e2f4a0bf1c4a465e4d5a07b532e4be616424144223c953995903bf4e4e",
+      "bytes": 2441
+    },
+    {
+      "path": "verification/privacy-python-junit.xml",
+      "sha256": "c40a38c6cc779e4f6dbd17e1718a0095cc4ed6c393f5f201f113a762c44c2d0d",
+      "bytes": 11853
+    },
+    {
+      "path": "verification/privacy-cleanup-checks.json",
+      "sha256": "7cfb0ddc122b2026c93679f9e8bc7d93825b0048ccf3c62e2136310dcd9bacb4",
+      "bytes": 2019
+    },
+    {
+      "path": "verification/privacy-service.json",
+      "sha256": "a19628ac3273047f968d55d1edb166d7dcd666a4c094e3bf430cc2f665e442c9",
+      "bytes": 5686
     }
-  ]
+  ],
+  "refreshed_at": "2026-10-15T06:24:30.282668+00:00",
+  "privacy_cleanup": {
+    "historical_junit_reports_sanitized": 4,
+    "six_live_run_archives_unchanged": true
+  }
 }
