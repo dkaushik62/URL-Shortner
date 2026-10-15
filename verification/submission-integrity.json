@@ -3,7 +3,7 @@
   "archived_runs": 6,
   "successful_runs": 5,
   "event_chains_and_run_checksums_valid": true,
-  "proof_files": 69,
+  "proof_files": 73,
   "local_document_links_valid": true,
   "negative_fixture_checks": [
     "archive_checksum_tampering_rejected",

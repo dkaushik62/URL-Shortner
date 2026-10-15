@@ -40,3 +40,10 @@ malicious dependency packages. Trusted dependency setup is online; subsequent mo
 build/test execution is offline. Strong production execution would need dedicated
 workers, network enforcement, tenant identity, protected secrets, artifact signing,
 independent audit storage and a reviewed release pipeline.
+
+Before publishing test evidence, remove hostnames and local machine paths with
+`scripts/sanitize_test_reports.py`; pytest's JUnit export hook performs this step
+automatically for this repository's tests. Review screenshots and saved artifacts
+as well. This metadata filter does not replace a credential scan. Use a GitHub
+no-reply commit email for future commits when a personal address should remain
+private; changing that setting does not remove email addresses from existing history.

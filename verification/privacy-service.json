@@ -1,0 +1,244 @@
+{
+  "passed": true,
+  "exit_code": 0,
+  "unit": {
+    "passed": true,
+    "tests": 107,
+    "suites": [
+      {
+        "name": "com.urlshortner.urls.CreationLimitHttpTest",
+        "tests": "4",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.urlshortner.urls.CreationRateLimiterTest",
+        "tests": "4",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.urlshortner.urls.DestinationTest",
+        "tests": "28",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.urlshortner.urls.ErrorHandlingTest",
+        "tests": "7",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.urlshortner.urls.ExpiryCapTest",
+        "tests": "8",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.urlshortner.urls.ExpiryHttpBoundaryTest",
+        "tests": "5",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.urlshortner.urls.UrlControllerTest",
+        "tests": "36",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.urlshortner.urls.UrlRepositoryTest",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.urlshortner.urls.UrlServiceTest",
+        "tests": "13",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      }
+    ],
+    "failed_cases": []
+  },
+  "acceptance": {
+    "passed": true,
+    "cases": [
+      {
+        "name": "create returns 201",
+        "passed": true,
+        "details": "201"
+      },
+      {
+        "name": "creation includes short URL and random code",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "name": "302 redirect preserves destination",
+        "passed": true,
+        "details": "302"
+      },
+      {
+        "name": "concurrent clicks are not lost",
+        "passed": true,
+        "details": "26"
+      },
+      {
+        "name": "analytics includes timestamps",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "name": "unknown link returns 404",
+        "passed": true,
+        "details": "404"
+      },
+      {
+        "name": "invalid scheme rejected",
+        "passed": true,
+        "details": "400"
+      },
+      {
+        "name": "embedded credentials rejected",
+        "passed": true,
+        "details": "400"
+      },
+      {
+        "name": "control characters rejected",
+        "passed": true,
+        "details": "400"
+      },
+      {
+        "name": "missing host rejected",
+        "passed": true,
+        "details": "400"
+      },
+      {
+        "name": "creation rate limiting produces 429",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "name": "rate limit provides Retry-After",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "name": "creation limits do not block redirects",
+        "passed": true,
+        "details": ""
+      }
+    ]
+  },
+  "output_directory": "runs/1eaab66e89df41cc9397bb4b3b9690c8/output/6960ac13ffc743bb98d1475beaea53b6",
+  "duration_seconds": 95.344,
+  "expiry_and_upgrade": {
+    "passed": true,
+    "cases": [
+      {
+        "name": "V1 upgrade preserves historical row and clicks",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "name": "V1 historical row remains non-expiring",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "name": "V1 historical row redirects and increments after migration",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "name": "create returns 201",
+        "passed": true,
+        "details": "201"
+      },
+      {
+        "name": "creation includes short URL and random code",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "name": "302 redirect preserves destination",
+        "passed": true,
+        "details": "302"
+      },
+      {
+        "name": "concurrent clicks are not lost",
+        "passed": true,
+        "details": "26"
+      },
+      {
+        "name": "analytics includes timestamps",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "name": "unknown link returns 404",
+        "passed": true,
+        "details": "404"
+      },
+      {
+        "name": "invalid scheme rejected",
+        "passed": true,
+        "details": "400"
+      },
+      {
+        "name": "embedded credentials rejected",
+        "passed": true,
+        "details": "400"
+      },
+      {
+        "name": "control characters rejected",
+        "passed": true,
+        "details": "400"
+      },
+      {
+        "name": "missing host rejected",
+        "passed": true,
+        "details": "400"
+      },
+      {
+        "name": "expiry maximum enforced",
+        "passed": true,
+        "details": "400"
+      },
+      {
+        "name": "past expiry rejected",
+        "passed": true,
+        "details": "400"
+      },
+      {
+        "name": "future expiry accepted",
+        "passed": true,
+        "details": "201"
+      },
+      {
+        "name": "expired link returns 410",
+        "passed": true,
+        "details": "410"
+      },
+      {
+        "name": "expired visits do not count",
+        "passed": true,
+        "details": ""
+      }
+    ]
+  },
+  "jar_sha256": "669b6b09dab42b6fc4440e6cabc4f9bc0f9b442d167f58bff18ee39e2e4576d4",
+  "kind": "automated_service_validation_not_agent_run",
+  "source_base_revision": "bddffbc107931cdd3c73a446dc2f6d5a8c517021"
+}

@@ -2,6 +2,15 @@
 
 Run `python scripts/verify.py` after setup. It invokes no model and no billed provider.
 
+Pytest JUnit exports (`python -m pytest --junitxml=report.xml`) automatically remove
+the machine hostname and local checkout, user-home and temporary path prefixes.
+Outcomes, counts, timestamps, durations and diagnostic reasons remain available.
+Test identifiers are preserved except for private paths inside parameter labels.
+Before publishing an older report, run
+`python scripts/sanitize_test_reports.py path/to/report.xml`.
+This publication filter covers machine metadata; credentials must still be kept
+out of test inputs and reviewed before sharing artifacts.
+
 - Python tests exercise graph branches/joins, source-repair limits, stale approvals,
   clarification, re-planning, receipt reuse, single-run scheduling, workspace boundaries,
   CSRF/Origin controls, redaction, audit tampering and opt-in API transport.
